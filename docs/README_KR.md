@@ -46,7 +46,7 @@ Next.js로 구축된 빠르고 현대적인 WHOIS/RDAP 조회 도구.
 ### Docker
 
 ```bash
-docker run -d -p 3000:3000 programzmh/next-whois-ui
+docker run -d -p 3000:3000 ghcr.io/fariacool/next-whois:latest
 ```
 
 ### 소스 코드

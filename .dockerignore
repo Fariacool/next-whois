@@ -1,6 +1,22 @@
 README.md
+docs
 LICENSE
+.git
 .github
+.gitignore
+.env*
+.tmp
+tmp
+.vercel
+.netlify
+.vscode
+.idea
 
 .next
+.next-build
 node_modules
+coverage
+*.tsbuildinfo
+*-debug.log*
+compose
+docker-compose*.yml

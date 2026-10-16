@@ -46,7 +46,7 @@
 ### Docker
 
 ```bash
-docker run -d -p 3000:3000 programzmh/next-whois-ui
+docker run -d -p 3000:3000 ghcr.io/fariacool/next-whois:latest
 ```
 
 ### 原始碼部署

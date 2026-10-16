@@ -45,9 +45,35 @@
 
 ### Docker
 
+每次向 `main` 推送提交，都会先运行 CI，通过后自动构建 `linux/amd64` 和 `linux/arm64` 镜像，并使用内置的 `GITHUB_TOKEN` 发布到 GHCR。不需要 `ENABLE_DOCKER_PUBLISH` 变量，也不需要 DockerHub 账号或密钥。也可以在 **Actions → Build and Push Docker Image → Run workflow** 中选择 `main` 手动构建。
+
+镜像地址为 `ghcr.io/fariacool/next-whois`，自动发布 `latest`、`main` 和 `sha-<完整 commit SHA>` 标签。其他 fork 会按自己的仓库所有者/仓库名生成小写镜像地址，服务器上的 `IMAGE_NAME` 需相应修改。
+
 ```bash
-docker run -d -p 3000:3000 programzmh/next-whois-ui
+docker run -d --name next-whois --restart unless-stopped \
+  -p 3000:3000 ghcr.io/fariacool/next-whois:latest
 ```
+
+#### Docker Compose
+
+服务器需要 Docker Engine 和 Docker Compose v2，直接运行已发布的镜像，无需安装 Node.js 或 pnpm。
+
+```bash
+git clone https://github.com/Fariacool/next-whois.git
+cd next-whois
+./compose init
+# 检查 .env；如需对两个 API 启用 key 访问控制，设置 API_KEY。
+./compose up
+
+# GitHub 已发布新镜像后更新：
+./compose upgrade
+```
+
+`./compose init` 会在 `.env` 不存在时从 `.env.example` 创建。默认开放 `3000` 端口、允许公开访问 API，不依赖 Redis。使用宿主机反向代理时，可将 `HOST_BIND_ADDRESS` 改为 `127.0.0.1`；`HOST_PORT` 可修改对外端口。可选的 `REDIS_*` 和 Moz 配置见 `.env.example`；若 Redis 在宿主机运行，可设置 `REDIS_HOST=host.docker.internal`，并确保其监听地址允许 Docker 容器访问。应用本身无需持久化数据卷。
+
+其他命令：`./compose logs [service]`、`ps`、`down`、`restart [service]`、`pull`、`redeploy`、`validate` 和 `help`。`upgrade` 拉取镜像并应用更新，`redeploy` 使用本地镜像强制重建容器。修改 `.env` 后运行 `./compose up` 以应用新配置，单独 `restart` 不会更新环境变量。如需回滚，将 `.env` 中的 `IMAGE_NAME` 改为 `ghcr.io/fariacool/next-whois:sha-<完整 commit SHA>`，再运行 `./compose upgrade`。
+
+预构建镜像使用默认的站点/浏览器配置。`API_KEY`、Redis 和 Moz 在容器启动时配置；自定义 `NEXT_PUBLIC_*` 站点/浏览器配置需要自行构建镜像。本地 `.env*` 文件不会进入 Docker 构建上下文。
 
 ### 源码部署
 

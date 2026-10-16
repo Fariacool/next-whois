@@ -46,7 +46,7 @@ Next.js で構築された、高速でモダンな WHOIS/RDAP ルックアップ
 ### Docker
 
 ```bash
-docker run -d -p 3000:3000 programzmh/next-whois-ui
+docker run -d -p 3000:3000 ghcr.io/fariacool/next-whois:latest
 ```
 
 ### ソースコード

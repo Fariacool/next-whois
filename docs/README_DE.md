@@ -46,7 +46,7 @@ Großartige Arbeiten von brillanten Entwicklern, die dieses Projekt erweitern:
 ### Docker
 
 ```bash
-docker run -d -p 3000:3000 programzmh/next-whois-ui
+docker run -d -p 3000:3000 ghcr.io/fariacool/next-whois:latest
 ```
 
 ### Quellcode

@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "${SCRIPT_DIR}"
+
+compose_cmd() {
+  docker compose --env-file .env --file docker-compose.yml "$@"
+}
+
+prepare() {
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker is required but was not found in PATH." >&2
+    exit 1
+  fi
+
+  if ! docker compose version >/dev/null 2>&1; then
+    echo "Docker Compose v2 is required (docker compose)." >&2
+    exit 1
+  fi
+
+  if [ ! -f .env ]; then
+    (umask 077; cp .env.example .env)
+    echo "Created .env from .env.example. Defaults allow public API access; set API_KEY to require a key." >&2
+  fi
+
+  compose_cmd config --quiet
+}
+
+show_usage() {
+  cat <<'EOF'
+Usage: ./compose {init|up|down|restart|logs|ps|pull|upgrade|redeploy|validate|help} [service]
+
+Commands:
+  init       Create .env when missing and validate the configuration
+  up         Start the stack in the background
+  down       Stop and remove the stack
+  restart    Restart containers (optional: service name)
+  logs       Follow logs (default: app, or specify service)
+  ps         Show stack status
+  pull       Pull the configured image
+  upgrade    Pull the configured image and recreate changed containers
+  redeploy   Force-recreate containers using the current local image
+  validate   Validate the configuration without printing secrets
+  help       Show this help
+
+Before first use:
+  Run ./compose init, review .env, then run ./compose up.
+  Set API_KEY in .env if you want to require a Bearer key for both APIs.
+  After editing .env, run ./compose up to apply the changes.
+
+Common overrides (in .env or the shell environment):
+  IMAGE_NAME             Published image/tag, default ghcr.io/fariacool/next-whois:latest
+  HOST_BIND_ADDRESS      Host interface to bind, default 0.0.0.0
+  HOST_PORT              Published HTTP port, default 3000
+  COMPOSE_NETWORK_NAME   Docker network name, default next-whois
+  RESTART_POLICY         Docker restart policy, default unless-stopped
+  LOG_MAX_SIZE/FILE      json-file rotation, defaults 10m and 3
+EOF
+}
+
+action="${1:-help}"
+case "${action}" in
+  help | -h | --help)
+    show_usage
+    exit 0
+    ;;
+  init | up | down | restart | logs | ps | pull | upgrade | redeploy | validate) ;;
+  *)
+    show_usage >&2
+    exit 1
+    ;;
+esac
+
+if [ "$#" -gt 2 ] || { [ "$#" -eq 2 ] && [ "${action}" != restart ] && [ "${action}" != logs ]; }; then
+  echo "Only restart and logs accept an optional service name." >&2
+  exit 1
+fi
+
+prepare
+
+case "${action}" in
+  init | validate)
+    echo "Compose configuration is valid. Review .env before starting the app."
+    ;;
+  up)
+    compose_cmd up -d --remove-orphans
+    ;;
+  down)
+    compose_cmd down
+    ;;
+  restart)
+    if [ -n "${2:-}" ]; then
+      compose_cmd restart "$2"
+    else
+      compose_cmd restart
+    fi
+    ;;
+  logs)
+    compose_cmd logs -f "${2:-app}"
+    ;;
+  ps)
+    compose_cmd ps
+    ;;
+  pull)
+    compose_cmd pull
+    ;;
+  upgrade)
+    compose_cmd pull
+    compose_cmd up -d --remove-orphans
+    ;;
+  redeploy)
+    compose_cmd up -d --force-recreate --remove-orphans
+    ;;
+esac

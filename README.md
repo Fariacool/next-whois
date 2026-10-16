@@ -45,9 +45,35 @@ See great work from brilliant builders extending this project:
 
 ### Docker
 
+Every push to `main` runs CI, then builds `linux/amd64` and `linux/arm64` images and publishes them to GHCR using the built-in `GITHUB_TOKEN`. No `ENABLE_DOCKER_PUBLISH` variable or DockerHub credentials are needed. The workflow also supports **Actions → Build and Push Docker Image → Run workflow** on `main`.
+
+The image is `ghcr.io/fariacool/next-whois`, with `latest`, `main`, and `sha-<full commit SHA>` tags. In another fork, the workflow uses that repository's lowercase owner/name; update `IMAGE_NAME` on the server accordingly.
+
 ```bash
-docker run -d -p 3000:3000 programzmh/next-whois-ui
+docker run -d --name next-whois --restart unless-stopped \
+  -p 3000:3000 ghcr.io/fariacool/next-whois:latest
 ```
+
+#### Docker Compose
+
+Requires Docker Engine and Docker Compose v2. The server runs the published image; it does not need Node.js or pnpm.
+
+```bash
+git clone https://github.com/Fariacool/next-whois.git
+cd next-whois
+./compose init
+# Review .env; set API_KEY if you want to require a key for both APIs.
+./compose up
+
+# After a newer image has been published:
+./compose upgrade
+```
+
+`./compose init` creates `.env` from `.env.example` when missing. Defaults expose port `3000` with public API access and no Redis dependency. Set `HOST_BIND_ADDRESS=127.0.0.1` when a reverse proxy on the host should be the only entry point, or change `HOST_PORT` to use another port. Optional `REDIS_*` and Moz settings are included in `.env.example`; use `REDIS_HOST=host.docker.internal` for an existing Redis instance listening on a host interface reachable from Docker. The app requires no persistent volume.
+
+Other commands: `./compose logs [service]`, `ps`, `down`, `restart [service]`, `pull`, `redeploy`, `validate`, and `help`. `upgrade` pulls and applies the newest configured image; `redeploy` force-recreates containers using the local image. After editing `.env`, run `./compose up` to recreate containers with the new environment; `restart` alone does not apply configuration changes. To roll back, set `IMAGE_NAME=ghcr.io/fariacool/next-whois:sha-<full commit SHA>` in `.env` and run `./compose upgrade`.
+
+The published image uses the default site/browser settings. Configure `API_KEY`, Redis, and Moz at container runtime; custom `NEXT_PUBLIC_*` site/browser settings require a custom build. Local `.env*` files are excluded from the Docker build context.
 
 ### Source Code
 
