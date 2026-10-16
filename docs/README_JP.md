@@ -69,7 +69,7 @@ pnpm dev
 | `NEXT_PUBLIC_MAX_WHOIS_FOLLOW` | 最大ドメイン WHOIS フォロー深度 | 0 |
 | `MOZ_ACCESS_ID` | Moz API Access ID | — |
 | `MOZ_SECRET_KEY` | Moz API Secret Key | — |
-| `REDIS_HOST` | Redis ホスト（空 = キャッシュ無効） | — |
+| `REDIS_HOST` | 任意の Redis ホスト（空 = メモリキャッシュのみ） | — |
 | `REDIS_PORT` | Redis ポート | 6379 |
 | `REDIS_PASSWORD` | Redis パスワード | — |
 | `REDIS_DB` | Redis データベースインデックス | 0 |

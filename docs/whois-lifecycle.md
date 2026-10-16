@@ -32,7 +32,9 @@ status or nameserver information. Missing and rejected lifecycle values are
 - RDAP uses only top-level `registration`, `last changed` and `expiration`
   events with valid RFC 3339 timestamps. Entity events and `last update of RDAP
   database` are not lifecycle events. A malformed event cannot prevent a later
-  valid event or WHOIS fallback from supplying the date.
+  valid event from supplying the date. Successful RDAP records are returned
+  directly; missing or invalid individual fields are not supplemented from
+  WHOIS. WHOIS runs only when RDAP has no usable record or fails.
 - Rejected dates alone do not fail a lookup when other usable data exists.
   Transport failures, authoritative missing-name replies, rate limits and empty
   responses remain unsuccessful lookups.
@@ -87,7 +89,7 @@ Bearer-protected responses continue to disable browser/CDN caching.
 Run `pnpm test` and `pnpm exec tsc --noEmit`. Registry response excerpts and their
 provenance are in `src/lib/whois/fixtures/README.md`. Tests cover malformed dates,
 eight-digit non-date identifiers, database metadata, partial results, Jisc
-routing, RDAP merge, the versioned cache and Bearer API compatibility.
+routing, RDAP-first fallback, the versioned cache and Bearer API compatibility.
 
 The optional report tool reads the Site Lens `next-whois-issues.json` handoff.
 The 2026-10-16 snapshot has 2,743 unique domains across 12 suffixes, but its

@@ -346,7 +346,7 @@ export default function DocsPage({ origin }: { origin: string }) {
     "registrar": "MarkMonitor Inc.",
     "registrarURL": "http://www.markmonitor.com",
     "ianaId": "292",
-    "whoisServer": "whois.markmonitor.com",
+    "whoisServer": "https://rdap.example/domain/google.com",
     "creationDate": "1997-09-15T04:00:00Z",
     "expirationDate": "2028-09-14T04:00:00Z",
     "updatedDate": "2019-09-09T15:39:04Z",
@@ -358,7 +358,7 @@ export default function DocsPage({ origin }: { origin: string }) {
     "dnssec": "unsigned",
     "domainAge": 28,
     "remainingDays": 945,
-    "rawWhoisContent": "Domain Name: GOOGLE.COM\\nRegistry Domain ID: ...",
+    "rawWhoisContent": "",
     "rawRdapContent": "{\\n  \\"objectClassName\\": \\"domain\\",\\n  ...\\n}"
   }
 }`}</CodeBlock>
@@ -373,6 +373,75 @@ export default function DocsPage({ origin }: { origin: string }) {
   "time": 0.45,
   "error": "No match for domain \\"EXAMPLE.INVALID\\""
 }`}</CodeBlock>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-base flex-wrap">
+                  <Badge className="bg-sky-500/10 text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 border-0 text-xs font-bold">
+                    POST
+                  </Badge>
+                  <InlineCodeScroll codeClassName="font-mono text-sm">
+                    /api/lookup/batch
+                  </InlineCodeScroll>
+                </CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t("docs.batch_description")}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <ParamsTable
+                  t={t}
+                  params={[
+                    {
+                      name: "queries",
+                      type: "string[]",
+                      required: true,
+                      description: t("docs.batch_queries_desc"),
+                    },
+                  ]}
+                />
+                <p className="text-sm text-muted-foreground">
+                  {t("docs.batch_limits")}
+                </p>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+                    {t("docs.example_request")}
+                  </h3>
+                  <CodeBlock>{`curl 'https://your-domain.com/api/lookup/batch' -H "Authorization: Bearer $API_KEY" -H 'Content-Type: application/json' --data '{"queries":["example.com","8.8.8.8","AS13335"]}'`}</CodeBlock>
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+                    {t("docs.success_response")}
+                  </h3>
+                  <CodeBlock>
+                    {JSON.stringify(
+                      {
+                        status: true,
+                        time: 0.5,
+                        results: [
+                          {
+                            input: "example.com",
+                            status: true,
+                            time: 0.5,
+                            cached: false,
+                            source: "rdap",
+                            result: {
+                              domain: "example.com",
+                              registrar: "Example Registrar",
+                              rawWhoisContent: "",
+                              rawRdapContent: "...",
+                            },
+                          },
+                        ],
+                        summary: { total: 1, succeeded: 1, failed: 0 },
+                      },
+                      null,
+                      2,
+                    )}
+                  </CodeBlock>
                 </div>
               </CardContent>
             </Card>
@@ -465,6 +534,10 @@ export default function DocsPage({ origin }: { origin: string }) {
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
                 <p className="leading-relaxed">{t("auth.cache_description")}</p>
+                <p className="leading-relaxed">
+                  {t("docs.concurrency_description")}
+                </p>
+                <p className="leading-relaxed">{t("docs.cache_description")}</p>
                 <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
                   <span>{t("docs.rate_limiting_cached")}</span>
                   <InlineCodeScroll>{`"cached": true`}</InlineCodeScroll>

@@ -1,16 +1,12 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { whoisDomain, whoisQuery } from "whoiser";
+import { lookupRawWhois } from "./whois_client";
+import { LookupError } from "./errors";
 import { lookupRdap } from "./rdap_client";
 import { lookupWhois, lookupWhoisWithCache } from "./lookup";
 import { getJsonRedisValue, setJsonRedisValue } from "@/lib/server/redis";
 
-vi.mock("whoiser", () => ({
-  whoisDomain: vi.fn(),
-  whoisQuery: vi.fn(),
-  whoisIp: vi.fn(),
-  whoisAsn: vi.fn(),
-}));
+vi.mock("./whois_client", () => ({ lookupRawWhois: vi.fn() }));
 vi.mock("./rdap_client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./rdap_client")>()),
   lookupRdap: vi.fn(),
@@ -30,16 +26,18 @@ vi.mock("@/lib/moz/client", () => ({
 
 const fixture = (name: string) =>
   readFileSync(new URL(`./fixtures/${name}.txt`, import.meta.url), "utf8");
-const response = (raw: string) => ({ "registry.example": { __raw: raw } });
+const response = (raw: string) => ({ raw, server: "registry.example" });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  delete (
+    globalThis as typeof globalThis & { nextWhoisLookupService?: unknown }
+  ).nextWhoisLookupService;
   vi.mocked(lookupRdap).mockRejectedValue(new Error("RDAP unavailable"));
   vi.mocked(getJsonRedisValue).mockResolvedValue(null);
-  vi.mocked(whoisDomain).mockResolvedValue(
+  vi.mocked(lookupRawWhois).mockResolvedValue(
     response("Domain Name: example.com\nRegistrar: Example Registrar"),
   );
-  vi.mocked(whoisQuery).mockResolvedValue(fixture("jisc"));
 });
 
 describe("registry routing and partial results", () => {
@@ -51,7 +49,7 @@ describe("registry routing and partial results", () => {
   ])(
     "returns a compatible successful response for %s",
     async (name, domain, creationDate) => {
-      vi.mocked(whoisDomain).mockResolvedValue(response(fixture(name)));
+      vi.mocked(lookupRawWhois).mockResolvedValue(response(fixture(name)));
       const result = await lookupWhois(domain);
       expect(result.status).toBe(true);
       expect(result.error).toBeUndefined();
@@ -61,13 +59,15 @@ describe("registry routing and partial results", () => {
   );
 
   it("uses Jisc directly for .ac.uk instead of the ordinary .uk path", async () => {
+    vi.mocked(lookupRawWhois).mockResolvedValue({
+      raw: fixture("jisc"),
+      server: "whois.ja.net",
+    });
     const result = await lookupWhois("https://www.abdn.ac.uk/research");
-    expect(whoisQuery).toHaveBeenCalledWith(
-      "whois.ja.net",
-      "abdn.ac.uk",
-      15000,
+    expect(lookupRawWhois).toHaveBeenCalledWith(
+      { kind: "domain", value: "abdn.ac.uk" },
+      expect.any(AbortSignal),
     );
-    expect(whoisDomain).not.toHaveBeenCalled();
     expect(lookupRdap).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       status: true,
@@ -82,34 +82,19 @@ describe("registry routing and partial results", () => {
 
   it("preserves the ordinary lookup path for other .uk domains", async () => {
     await lookupWhois("example.co.uk");
-    expect(whoisDomain).toHaveBeenCalledWith(
-      "example.co.uk",
-      expect.objectContaining({ raw: true }),
+    expect(lookupRawWhois).toHaveBeenCalledWith(
+      { kind: "domain", value: "example.co.uk" },
+      expect.any(AbortSignal),
     );
-    expect(lookupRdap).toHaveBeenCalledWith("example.co.uk");
-    expect(whoisQuery).not.toHaveBeenCalled();
+    expect(lookupRdap).toHaveBeenCalledWith(
+      "example.co.uk",
+      expect.any(AbortSignal),
+    );
   });
 
-  it.each([
-    ["example.co.il", "whois.isoc.org.il"],
-    ["example.org.il", "whois.isoc.org.il"],
-    ["example.pe", "kero.yachay.pe"],
-    ["example.com.pe", "kero.yachay.pe"],
-    ["example.lv", "whois.nic.lv"],
-  ])(
-    "queries the known registry for %s without uncached IANA discovery",
-    async (domain, host) => {
-      await lookupWhois(domain);
-      expect(whoisDomain).toHaveBeenCalledWith(
-        domain,
-        expect.objectContaining({ host, raw: true, timeout: 15000 }),
-      );
-    },
-  );
-
   it("normalizes an authoritative Jisc missing-name response for existing clients", async () => {
-    vi.mocked(whoisQuery).mockResolvedValue(
-      "No such domain nonexistent.ac.uk\n",
+    vi.mocked(lookupRawWhois).mockResolvedValue(
+      response("No such domain nonexistent.ac.uk\n"),
     );
     expect(await lookupWhois("nonexistent.ac.uk")).toMatchObject({
       status: false,
@@ -121,21 +106,19 @@ describe("registry routing and partial results", () => {
   it.each(["digital.nhs.uk", "https://111.nhs.uk/", "DIGITAL.NHS.UK."])(
     "does not mistake a non-authoritative NHS response for non-registration: %s",
     async (query) => {
-      vi.mocked(whoisQuery).mockResolvedValue(fixture("nhs-jisc"));
       const result = await lookupWhois(query);
       expect(result).toMatchObject({
         status: false,
         error:
           "Unsupported WHOIS/RDAP namespace: NHS-managed .nhs.uk subdomains",
       });
-      expect(whoisQuery).not.toHaveBeenCalled();
-      expect(whoisDomain).not.toHaveBeenCalled();
+      expect(lookupRawWhois).not.toHaveBeenCalled();
       expect(lookupRdap).not.toHaveBeenCalled();
     },
   );
 
   it("keeps status-only information usable when dates are invalid", async () => {
-    vi.mocked(whoisDomain).mockResolvedValue(
+    vi.mocked(lookupRawWhois).mockResolvedValue(
       response(
         "Status: active\nCreation Date: 2020-02-30\nUpdated Date: Managing Registrar 20201224",
       ),
@@ -159,12 +142,12 @@ describe("registry routing and partial results", () => {
     "No match for example.com",
     "\n% Updated Date: 2020-12-24\n",
   ])("retains errors for unsuccessful queries: %s", async (raw) => {
-    vi.mocked(whoisDomain).mockResolvedValue(response(raw));
+    vi.mocked(lookupRawWhois).mockResolvedValue(response(raw));
     expect((await lookupWhois("example.com")).status).toBe(false);
   });
 
   it("does not interpret legal comments as a lookup error", async () => {
-    vi.mocked(whoisDomain).mockResolvedValue(
+    vi.mocked(lookupRawWhois).mockResolvedValue(
       response(
         "Domain Name: example.com\nRegistrar: Example Registrar\n% If a domain is not found, contact us.",
       ),
@@ -173,8 +156,8 @@ describe("registry routing and partial results", () => {
   });
 });
 
-describe("RDAP merge and cache", () => {
-  it("fills rejected RDAP dates from valid WHOIS fields without database metadata", async () => {
+describe("RDAP-first lookup and cache", () => {
+  it("returns partial RDAP data without querying WHOIS to fill missing dates", async () => {
     vi.mocked(lookupRdap).mockResolvedValue({
       ldhName: "13cabs.com.au",
       events: [
@@ -185,14 +168,15 @@ describe("RDAP merge and cache", () => {
         },
       ],
     });
-    vi.mocked(whoisDomain).mockResolvedValue(response(fixture("au")));
+    vi.mocked(lookupRawWhois).mockResolvedValue(response(fixture("au")));
     const result = await lookupWhois("13cabs.com.au");
     expect(result).toMatchObject({
       status: true,
       source: "rdap",
       result: {
         creationDate: "Unknown",
-        updatedDate: "2026-08-15T20:04:09.000Z",
+        updatedDate: "Unknown",
+        rawWhoisContent: "",
         expirationDate: "Unknown",
       },
     });
@@ -200,28 +184,85 @@ describe("RDAP merge and cache", () => {
 
   it("does not merge an unsuccessful WHOIS response into valid RDAP data", async () => {
     vi.mocked(lookupRdap).mockResolvedValue({ ldhName: "example.com" });
-    vi.mocked(whoisDomain).mockResolvedValue(
+    vi.mocked(lookupRawWhois).mockResolvedValue(
       response("No match for example.com\nUpdated Date: 2020-12-24"),
     );
     expect((await lookupWhois("example.com")).result?.updatedDate).toBe(
       "Unknown",
     );
+    expect(lookupRawWhois).not.toHaveBeenCalled();
   });
 
-  it("uses a new cache namespace so old malformed lifecycle fields are not served", async () => {
-    const result = await lookupWhoisWithCache("example.com");
-    expect(result.status).toBe(true);
-    expect(getJsonRedisValue).toHaveBeenCalledWith("whois:v2:example.com");
-    expect(setJsonRedisValue).toHaveBeenCalledWith(
-      "whois:v2:example.com",
-      expect.objectContaining({ status: true }),
+  it.each([
+    null,
+    {},
+    { errorCode: 404 },
+    { ldhName: "other.com" },
+    { ldhName: "example.com", nameservers: "invalid" },
+  ])("falls back for absent or malformed RDAP: %j", async (data) => {
+    vi.mocked(lookupRdap).mockResolvedValue(data);
+    const result = await lookupWhois("example.com");
+    expect(result).toMatchObject({ status: true, source: "whois" });
+    expect(lookupRawWhois).toHaveBeenCalledOnce();
+  });
+
+  it("does not send WHOIS until RDAP has failed", async () => {
+    let reject!: (error: Error) => void;
+    vi.mocked(lookupRdap).mockImplementation(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
     );
-    vi.mocked(getJsonRedisValue).mockResolvedValue(result);
-    vi.clearAllMocks();
-    expect(await lookupWhoisWithCache("example.com")).toMatchObject({
-      cached: true,
-      time: 0,
+    const lookup = lookupWhois("example.com");
+    expect(lookupRawWhois).not.toHaveBeenCalled();
+    reject(new Error("RDAP unavailable"));
+    expect(await lookup).toMatchObject({ status: true, source: "whois" });
+  });
+
+  it.each(["BUSY", "UPSTREAM_RATE_LIMITED"] as const)(
+    "does not fall back for %s",
+    async (code) => {
+      vi.mocked(lookupRdap).mockRejectedValue(
+        new LookupError(code, "Retry later.", 60),
+      );
+      expect(await lookupWhois("example.com")).toMatchObject({
+        status: false,
+        errorCode: code,
+        retryAfterSeconds: 60,
+      });
+      expect(lookupRawWhois).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not start WHOIS after the lookup deadline", async () => {
+    const controller = new AbortController();
+    vi.mocked(lookupRdap).mockImplementation(async () => {
+      controller.abort();
+      return null;
     });
-    expect(whoisDomain).not.toHaveBeenCalled();
+    expect(await lookupWhois("example.com", controller.signal)).toMatchObject({
+      status: false,
+      errorCode: "LOOKUP_TIMEOUT",
+    });
+    expect(lookupRawWhois).not.toHaveBeenCalled();
+  });
+
+  it("uses a new normalized cache namespace and reuses successful results", async () => {
+    const result = await lookupWhoisWithCache("Example.COM");
+    expect(result.status).toBe(true);
+    expect(getJsonRedisValue).toHaveBeenCalledWith("whois:v3:example.com");
+    expect(setJsonRedisValue).toHaveBeenCalledWith(
+      "whois:v3:example.com",
+      expect.objectContaining({
+        result: expect.objectContaining({ status: true }),
+        expiresAt: expect.any(Number),
+      }),
+    );
+    vi.clearAllMocks();
+    expect(
+      await lookupWhoisWithCache("https://www.example.com/path"),
+    ).toMatchObject({ cached: true, time: 0 });
+    expect(lookupRawWhois).not.toHaveBeenCalled();
   });
 });

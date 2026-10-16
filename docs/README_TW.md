@@ -69,7 +69,7 @@ pnpm dev
 | `NEXT_PUBLIC_MAX_WHOIS_FOLLOW` | 最大域名 WHOIS 跟隨深度 | 0 |
 | `MOZ_ACCESS_ID` | Moz API Access ID | — |
 | `MOZ_SECRET_KEY` | Moz API Secret Key | — |
-| `REDIS_HOST` | Redis 主機（留空則停用快取） | — |
+| `REDIS_HOST` | 可選 Redis 主機（留空時僅使用記憶體快取） | — |
 | `REDIS_PORT` | Redis 連接埠 | 6379 |
 | `REDIS_PASSWORD` | Redis 密碼 | — |
 | `REDIS_DB` | Redis 資料庫索引 | 0 |

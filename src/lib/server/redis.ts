@@ -16,6 +16,9 @@ function createRedisConn(): Redis | undefined {
         port: REDIS_PORT,
         password: REDIS_PASSWORD,
         db: REDIS_DB,
+        commandTimeout: 1_000,
+        maxRetriesPerRequest: 1,
+        enableOfflineQueue: false,
       });
     } catch (error) {
       console.error("Failed to connect to Redis:", error);

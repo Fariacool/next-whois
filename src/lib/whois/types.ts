@@ -1,4 +1,5 @@
 import { DomainPricing } from "../pricing/client";
+import type { LookupErrorCode } from "./errors";
 
 export type WhoisResult = {
   status: boolean;
@@ -7,6 +8,15 @@ export type WhoisResult = {
   source?: "rdap" | "whois";
   result?: WhoisAnalyzeResult;
   error?: string;
+  errorCode?: LookupErrorCode;
+  retryAfterSeconds?: number;
+};
+
+export type WhoisBatchResult = {
+  status: true;
+  time: number;
+  results: (WhoisResult & { input: string })[];
+  summary: { total: number; succeeded: number; failed: number };
 };
 
 export type WhoisAnalyzeResult = {

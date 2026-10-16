@@ -15,7 +15,10 @@ async function generateAuthToken(): Promise<string> {
   return `Basic ${credentials}`;
 }
 
-export async function getMozMetrics(domain: string): Promise<MozMetrics> {
+export async function getMozMetrics(
+  domain: string,
+  signal?: AbortSignal,
+): Promise<MozMetrics> {
   try {
     if (!MOZ_ACCESS_ID || !MOZ_SECRET_KEY) {
       return {
@@ -29,6 +32,10 @@ export async function getMozMetrics(domain: string): Promise<MozMetrics> {
 
     // Get Domain Authority
     const daResponse = await fetch(`${MOZ_API_URL}/url_metrics`, {
+      signal: AbortSignal.any([
+        ...(signal ? [signal] : []),
+        AbortSignal.timeout(5_000),
+      ]),
       method: "POST",
       headers: {
         Authorization: authToken,

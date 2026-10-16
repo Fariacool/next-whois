@@ -38,7 +38,10 @@ function calculateRemainingDays(expirationDate: string): number {
   return Math.max(0, expiry.diff(now, "days"));
 }
 
-export async function applyParams(result: WhoisAnalyzeResult) {
+export async function applyParams(
+  result: WhoisAnalyzeResult,
+  signal?: AbortSignal,
+) {
   // Calculate domain age and remaining days
   result.domainAge =
     !result.creationDate || result.creationDate === "Unknown"
@@ -50,12 +53,16 @@ export async function applyParams(result: WhoisAnalyzeResult) {
       : calculateRemainingDays(result.expirationDate);
 
   // Get pricing information
-  result.registerPrice = await getDomainPricing(result.domain, "new");
-  result.renewPrice = await getDomainPricing(result.domain, "renew");
-  result.transferPrice = await getDomainPricing(result.domain, "transfer");
+  result.registerPrice = await getDomainPricing(result.domain, "new", signal);
+  result.renewPrice = await getDomainPricing(result.domain, "renew", signal);
+  result.transferPrice = await getDomainPricing(
+    result.domain,
+    "transfer",
+    signal,
+  );
 
   // Get Moz metrics
-  const mozMetrics = await getMozMetrics(result.domain);
+  const mozMetrics = await getMozMetrics(result.domain, signal);
   result.mozDomainAuthority = mozMetrics.domainAuthority;
   result.mozPageAuthority = mozMetrics.pageAuthority;
   result.mozSpamScore = mozMetrics.spamScore;
@@ -368,6 +375,7 @@ export function parseWhois(data: string, query = ""): WhoisAnalyzeResult {
 export async function analyzeWhois(
   data: string,
   query = "",
+  signal?: AbortSignal,
 ): Promise<WhoisAnalyzeResult> {
-  return await applyParams(parseWhois(data, query));
+  return await applyParams(parseWhois(data, query), signal);
 }

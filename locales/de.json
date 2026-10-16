@@ -117,7 +117,7 @@
     "success_response": "Erfolgsantwort",
     "error_response": "Fehlerantwort",
     "preview": "Vorschau",
-    "lookup_description": "WHOIS/RDAP-Informationen für eine Domain, IP-Adresse, ASN oder CIDR-Bereich abfragen. RDAP und WHOIS werden parallel abgefragt; strukturierte Felder bevorzugen RDAP-Daten mit Fallback auf WHOIS. Beide Rohantworten sind enthalten.",
+    "lookup_description": "Domains, IP-Adressen, ASN und CIDR werden zuerst per RDAP abgefragt. Gibt es keinen nutzbaren Datensatz oder schlägt RDAP fehl, folgt WHOIS. Fehlende Felder bleiben Unknown; nur die Rohantwort der gewählten Quelle wird ausgegeben.",
     "lookup_query_desc": "Domainname, IPv4/IPv6-Adresse, ASN (z.B. AS13335) oder CIDR-Bereich. Alias: q",
     "og_description": "Dynamisches Open-Graph-Bild mit WHOIS-Details generieren. Fragt intern /api/lookup ab und rendert eine kartenförmige Zusammenfassung. Gibt ein PNG-Bild zurück.",
     "og_query_desc": "Domain, IP, ASN oder CIDR zum Nachschlagen und Anzeigen. Alias: q",
@@ -133,7 +133,12 @@
     "required": "Erforderlich",
     "optional": "Optional",
     "default": "Standard",
-    "description_col": "Beschreibung"
+    "description_col": "Beschreibung",
+    "batch_description": "Mehrere Abfragen senden. Reihenfolge und Duplikate bleiben erhalten; Fehler betreffen nur den jeweiligen Eintrag. Angenommene Stapel liefern HTTP 200; prüfen Sie status pro Eintrag.",
+    "batch_queries_desc": "Nicht leeres Array mit Domain-, IP-, ASN- oder CIDR-Zeichenfolgen.",
+    "batch_limits": "Standard: höchstens 10 Einträge einschließlich Duplikaten; JSON maximal 64 KiB. Content-Type: application/json ist erforderlich. Stapelantworten verwenden immer no-store.",
+    "concurrency_description": "Einzel- und Stapelabfragen teilen standardmäßig 20 Registrierungsverbindungen pro Prozess und 5 pro externem Hostnamen, einschließlich Erkennung und Weiterleitungen. Eine Verbindung ist auf 5 Sekunden begrenzt, eine Abfrage einschließlich Warteschlange auf 30 Sekunden.",
+    "cache_description": "Erfolgreiche Ergebnisse werden standardmäßig eine Stunde im Speicher zwischengespeichert, optional zusätzlich in Redis. Fehler werden nicht gespeichert. Gleichzeitige normalisierte Abfragen werden zusammengeführt; das Beitreten zu einer laufenden Abfrage meldet cached: false."
   },
   "toast": {
     "copied": "Kopiert!",

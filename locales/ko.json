@@ -117,7 +117,7 @@
     "success_response": "성공 응답",
     "error_response": "오류 응답",
     "preview": "미리보기",
-    "lookup_description": "도메인, IP 주소, ASN 또는 CIDR 범위에 대한 WHOIS/RDAP 정보를 조회합니다. RDAP와 WHOIS가 병렬로 조회되며, 구조화된 필드는 RDAP 데이터를 우선하고 WHOIS로 대체됩니다. 두 원시 응답이 모두 포함됩니다.",
+    "lookup_description": "도메인, IP, ASN 또는 CIDR을 RDAP으로 먼저 조회합니다. 유효한 결과가 없거나 요청이 실패하면 WHOIS로 전환합니다. 누락된 개별 필드는 Unknown으로 유지하며 선택한 출처의 원본 응답만 포함합니다.",
     "lookup_query_desc": "도메인 이름, IPv4/IPv6 주소, ASN(예: AS13335) 또는 CIDR 범위. 별칭: q",
     "og_description": "WHOIS 세부 정보가 포함된 동적 Open Graph 이미지를 생성합니다. 내부적으로 /api/lookup을 쿼리하고 카드 스타일 요약을 렌더링합니다. PNG 이미지를 반환합니다.",
     "og_query_desc": "조회 및 표시할 도메인, IP, ASN 또는 CIDR. 별칭: q",
@@ -133,7 +133,12 @@
     "required": "필수",
     "optional": "선택",
     "default": "기본값",
-    "description_col": "설명"
+    "description_col": "설명",
+    "batch_description": "여러 조회를 한 번에 전송합니다. 입력 순서와 중복을 유지하며 실패는 해당 항목에만 영향을 줍니다. 수락된 일괄 요청은 HTTP 200을 반환하므로 각 항목의 status를 확인하세요.",
+    "batch_queries_desc": "도메인, IP, ASN 또는 CIDR 문자열의 비어 있지 않은 배열.",
+    "batch_limits": "기본 최대 10개 항목이며 중복도 포함합니다. JSON 본문 제한은 64 KiB입니다. Content-Type: application/json이 필요하며 일괄 응답은 항상 no-store를 사용합니다.",
+    "concurrency_description": "단일 및 일괄 조회는 기본적으로 프로세스 전체 20개, 외부 호스트 이름별 5개의 등록 정보 연결을 공유합니다. 서버 탐색, 리디렉션 및 참조도 같은 대기열을 사용합니다. 연결당 5초, 대기를 포함한 조회 전체는 30초로 제한됩니다.",
+    "cache_description": "성공 결과는 기본적으로 메모리에 1시간 캐시되며 Redis를 선택적으로 사용할 수 있습니다. 오류는 캐시하지 않습니다. 동일하게 정규화된 동시 요청은 하나로 합쳐지며 진행 중인 조회에 참여하면 cached: false입니다."
   },
   "toast": {
     "copied": "복사됨!",

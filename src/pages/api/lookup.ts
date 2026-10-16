@@ -1,24 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { lookupWhoisWithCache } from "@/lib/whois/lookup";
-import { WhoisAnalyzeResult } from "@/lib/whois/types";
+import { WhoisResult } from "@/lib/whois/types";
 import {
   isApiAuthorized,
   PRIVATE_API_HEADERS,
   UNAUTHORIZED_HEADERS,
 } from "@/lib/server/api-auth";
 
-type Data = {
-  status: boolean;
-  time: number;
-  cached?: boolean;
-  source?: "rdap" | "whois";
-  result?: WhoisAnalyzeResult;
-  error?: string;
-};
-
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<Data>,
+  res: NextApiResponse<WhoisResult>,
 ) {
   if (process.env.API_KEY) {
     for (const [name, value] of Object.entries(PRIVATE_API_HEADERS))
@@ -40,10 +31,32 @@ export default async function handler(
       .json({ time: -1, status: false, error: "Query is required" });
   }
 
-  const { time, status, result, error, cached, source } =
-    await lookupWhoisWithCache(query);
+  const {
+    time,
+    status,
+    result,
+    error,
+    cached,
+    source,
+    errorCode,
+    retryAfterSeconds,
+  } = await lookupWhoisWithCache(query);
   if (!status) {
-    return res.status(500).json({ time, status, error });
+    if (retryAfterSeconds !== undefined)
+      res.setHeader("Retry-After", String(retryAfterSeconds));
+    const statusCode =
+      errorCode === "INVALID_QUERY"
+        ? 400
+        : errorCode === "BUSY"
+          ? 503
+          : errorCode === "UPSTREAM_RATE_LIMITED"
+            ? 429
+            : errorCode === "LOOKUP_TIMEOUT"
+              ? 504
+              : 500;
+    return res
+      .status(statusCode)
+      .json({ time, status, error, errorCode, retryAfterSeconds });
   }
 
   if (!process.env.API_KEY) {

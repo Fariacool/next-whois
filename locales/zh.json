@@ -8,7 +8,7 @@
     "storage_error": "无法保存 API key，请允许浏览器使用本地存储后重试。",
     "loading": "加载中…",
     "query_prompt": "点击查询后开始检索。",
-    "cache_description": "配置 API_KEY 后，每次 API 请求都需要携带 Authorization: Bearer <key>。缺少或错误的 key 返回 HTTP 401 和 Error 401。受保护的响应使用 private, no-store，服务端仍可使用 Redis 缓存。未配置 API_KEY 时保持公开访问，查询响应允许共享缓存。"
+    "cache_description": "配置 API_KEY 后，每次 API 请求都需要携带 Authorization: Bearer <key>。缺少或错误的 key 返回 HTTP 401 和 Error 401。受保护的响应使用 private, no-store，服务端仍可使用查询缓存。未配置 API_KEY 时保持公开访问，单查响应允许共享缓存。"
   },
   "search_history": "搜索历史...",
   "filter_by_type": "按类型筛选",
@@ -127,7 +127,7 @@
     "success_response": "成功响应",
     "error_response": "错误响应",
     "preview": "预览",
-    "lookup_description": "查询域名、IP 地址、ASN 或 CIDR 范围的 WHOIS/RDAP 信息。RDAP 和 WHOIS 并行查询；结构化字段优先使用 RDAP 数据，回退到 WHOIS。两种原始响应均包含在内。",
+    "lookup_description": "先通过 RDAP 查询域名、IP 地址、ASN 或 CIDR；无有效记录或请求失败后再回退 WHOIS。缺失的个别字段保留 Unknown，仅包含所选来源的原始响应。",
     "lookup_query_desc": "域名、IPv4/IPv6 地址、ASN（如 AS13335）或 CIDR 范围。别名：q",
     "og_description": "生成包含 WHOIS 详情的动态 Open Graph 图像。内部查询 /api/lookup 并渲染卡片式摘要。返回 PNG 图像。",
     "og_query_desc": "要查询和显示的域名、IP、ASN 或 CIDR。别名：q",
@@ -143,7 +143,12 @@
     "required": "必填",
     "optional": "可选",
     "default": "默认值",
-    "description_col": "描述"
+    "description_col": "描述",
+    "batch_description": "提交一小批查询。结果保留输入顺序和重复项，单项失败不影响其他项。已接受的批量请求返回 HTTP 200，请检查各项的 status。",
+    "batch_queries_desc": "非空字符串数组，支持域名、IP、ASN 和 CIDR。",
+    "batch_limits": "默认每批最多 10 项，重复项计入数量；JSON 请求体上限 64 KiB。需要 Content-Type: application/json。批量响应始终使用 no-store。",
+    "concurrency_description": "单查和批量共用注册信息查询额度：默认每进程总连接 20、同一上游 hostname 5。服务器发现、重定向和转介也进入该队列。每条连接限时 5 秒，单项查询连同排队限时 30 秒。",
+    "cache_description": "成功结果默认在进程内缓存一小时，可选 Redis 持久缓存；错误不缓存。同一规范化查询的并发请求共享一次查询，加入进行中的查询时 cached 为 false。"
   },
   "toast": {
     "copied": "已复制！",

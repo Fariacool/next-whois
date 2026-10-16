@@ -1,8 +1,7 @@
-import { domain, ip, autnum } from "node-rdap";
 import { WhoisAnalyzeResult, DomainStatusProps } from "./types";
-import { extractDomain } from "@/lib/utils";
 import { applyParams } from "./common_parser";
 import { parseRdapDate } from "./lifecycle_dates";
+import { requestRdap, rdapServer } from "./rdap_lookup";
 
 export interface RdapResponse {
   handle?: string;
@@ -55,29 +54,11 @@ export interface RdapResponse {
   endAutnum?: string | number;
 }
 
-function isIPAddress(query: string): boolean {
-  const bare = query.replace(/\/\d{1,3}$/, "");
-  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
-  const ipv6Regex = /^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$/;
-  return ipv4Regex.test(bare) || ipv6Regex.test(bare);
-}
-
-function isASNumber(query: string): boolean {
-  return /^AS\d+$/i.test(query) || /^\d+$/.test(query);
-}
-
-export async function lookupRdap(query: string): Promise<any> {
-  const cleanQuery = query.trim().toLowerCase();
-
-  if (isIPAddress(cleanQuery)) {
-    return await ip(cleanQuery);
-  } else if (isASNumber(cleanQuery)) {
-    const asNumber = cleanQuery.replace(/^as/i, "");
-    return await autnum(parseInt(asNumber));
-  } else {
-    const domainToQuery = extractDomain(cleanQuery) || cleanQuery;
-    return await domain(domainToQuery);
-  }
+export async function lookupRdap(
+  query: string,
+  signal?: AbortSignal,
+): Promise<any> {
+  return requestRdap(query, signal);
 }
 
 function extractVcardField(vcardArray: any[], fieldName: string): string {
@@ -160,6 +141,7 @@ function parseRdapEntity(entities: any[]): {
 export async function convertRdapToWhoisResult(
   rdapData: any,
   originalQuery: string,
+  signal?: AbortSignal,
 ): Promise<WhoisAnalyzeResult> {
   const entities = rdapData.entities || [];
   const entityData = parseRdapEntity(entities);
@@ -207,7 +189,7 @@ export async function convertRdapToWhoisResult(
     registrar: entityData.registrar,
     registrarURL: entityData.registrarURL,
     ianaId: entityData.ianaId,
-    whoisServer: "https://rdap.org",
+    whoisServer: rdapServer(rdapData),
     updatedDate,
     creationDate,
     expirationDate,
@@ -249,5 +231,5 @@ export async function convertRdapToWhoisResult(
     originAS: rdapData.startAutnum ? `AS${rdapData.startAutnum}` : "Unknown",
   };
 
-  return await applyParams(result);
+  return await applyParams(result, signal);
 }

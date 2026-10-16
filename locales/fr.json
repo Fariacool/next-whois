@@ -117,7 +117,7 @@
     "success_response": "Réponse de succès",
     "error_response": "Réponse d'erreur",
     "preview": "Aperçu",
-    "lookup_description": "Interroger les informations WHOIS/RDAP pour un domaine, une adresse IP, un ASN ou une plage CIDR. RDAP et WHOIS sont interrogés en parallèle ; les champs structurés préfèrent les données RDAP avec repli sur WHOIS. Les deux réponses brutes sont incluses.",
+    "lookup_description": "Interroge un domaine, une IP, un ASN ou un CIDR via RDAP en priorité. Sans résultat exploitable ou en cas d’échec, utilise WHOIS. Les champs absents restent Unknown ; seule la réponse brute de la source retenue est incluse.",
     "lookup_query_desc": "Nom de domaine, adresse IPv4/IPv6, ASN (ex. AS13335) ou plage CIDR. Alias : q",
     "og_description": "Générer une image Open Graph dynamique avec les détails WHOIS. Interroge en interne /api/lookup et rend un résumé sous forme de carte. Retourne une image PNG.",
     "og_query_desc": "Domaine, IP, ASN ou CIDR à rechercher et afficher. Alias : q",
@@ -133,7 +133,12 @@
     "required": "Requis",
     "optional": "Optionnel",
     "default": "Défaut",
-    "description_col": "Description"
+    "description_col": "Description",
+    "batch_description": "Envoie un petit lot de requêtes. L’ordre et les doublons sont conservés ; un échec ne concerne que son élément. Un lot accepté retourne HTTP 200 : vérifiez le status de chaque élément.",
+    "batch_queries_desc": "Tableau non vide de chaînes domaine, IP, ASN ou CIDR.",
+    "batch_limits": "Par défaut : 10 éléments maximum, doublons compris ; corps JSON limité à 64 KiB. Content-Type: application/json requis. Les réponses par lot utilisent toujours no-store.",
+    "concurrency_description": "Les requêtes simples et par lot partagent par défaut 20 connexions de registre par processus et 5 par hôte externe, découverte et redirections comprises. Délai de 5 secondes par connexion et de 30 secondes par requête, attente comprise.",
+    "cache_description": "Les résultats réussis sont conservés une heure en mémoire par défaut, avec Redis en option. Les erreurs ne sont pas mises en cache. Les requêtes normalisées simultanées sont regroupées ; rejoindre une requête en cours indique cached: false."
   },
   "toast": {
     "copied": "Copié !",

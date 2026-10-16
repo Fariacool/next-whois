@@ -46,6 +46,7 @@ const defaultDomainPricing: DomainPricing = {
 export async function getDomainPricing(
   domain: string,
   type: NazhumiOrder,
+  signal?: AbortSignal,
 ): Promise<DomainPricing | null> {
   try {
     const tld = domain
@@ -55,6 +56,10 @@ export async function getDomainPricing(
       .trim();
     const url = `${NAZHUMI_API_URL}?domain=${encodeURIComponent(tld)}&order=${type}`;
     const response = await fetch(url, {
+      signal: AbortSignal.any([
+        ...(signal ? [signal] : []),
+        AbortSignal.timeout(5_000),
+      ]),
       headers: {
         Accept: "application/json",
       },

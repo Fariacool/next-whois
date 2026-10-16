@@ -69,7 +69,7 @@ pnpm dev
 | `NEXT_PUBLIC_MAX_WHOIS_FOLLOW` | Max. Domain-WHOIS-Verfolgungstiefe | 0 |
 | `MOZ_ACCESS_ID` | Moz API Access ID | — |
 | `MOZ_SECRET_KEY` | Moz API Secret Key | — |
-| `REDIS_HOST` | Redis-Host (leer = Cache deaktiviert) | — |
+| `REDIS_HOST` | Optionaler Redis-Host (leer = nur Cache im Arbeitsspeicher) | — |
 | `REDIS_PORT` | Redis-Port | 6379 |
 | `REDIS_PASSWORD` | Redis-Passwort | — |
 | `REDIS_DB` | Redis-Datenbankindex | 0 |

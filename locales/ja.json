@@ -117,7 +117,7 @@
     "success_response": "成功レスポンス",
     "error_response": "エラーレスポンス",
     "preview": "プレビュー",
-    "lookup_description": "ドメイン、IPアドレス、ASN、またはCIDR範囲のWHOIS/RDAP情報を照会します。RDAPとWHOISは並行して照会され、構造化フィールドはRDAPデータを優先し、WHOISにフォールバックします。両方の生のレスポンスが含まれます。",
+    "lookup_description": "ドメイン、IP、ASN、CIDR を RDAP 優先で検索します。有効な結果がない場合や失敗時は WHOIS に切り替えます。個別の欠損項目は Unknown のままとし、採用した情報源の生レスポンスのみを返します。",
     "lookup_query_desc": "ドメイン名、IPv4/IPv6アドレス、ASN（例：AS13335）、またはCIDR範囲。エイリアス：q",
     "og_description": "WHOIS詳細を含む動的なOpen Graph画像を生成します。内部的に/api/lookupを照会し、カードスタイルのサマリーをレンダリングします。PNG画像を返します。",
     "og_query_desc": "ルックアップして表示するドメイン、IP、ASN、またはCIDR。エイリアス：q",
@@ -133,7 +133,12 @@
     "required": "必須",
     "optional": "任意",
     "default": "デフォルト",
-    "description_col": "説明"
+    "description_col": "説明",
+    "batch_description": "複数の検索をまとめて送信します。入力順と重複は維持され、失敗は該当項目だけに影響します。受け付けたバッチは HTTP 200 を返すため、各項目の status を確認してください。",
+    "batch_queries_desc": "ドメイン、IP、ASN、CIDR の文字列を含む空でない配列。",
+    "batch_limits": "既定は重複を含め最大 10 項目、JSON 本文は 64 KiB までです。Content-Type: application/json が必要です。バッチ応答は常に no-store です。",
+    "concurrency_description": "単一検索とバッチは、既定でプロセス全体 20 接続、外部ホスト名ごと 5 接続を共有します。サーバー探索、リダイレクト、紹介先も同じキューを使用します。接続は 5 秒、待機を含む検索全体は 30 秒が上限です。",
+    "cache_description": "成功した結果は既定でメモリに 1 時間保存され、Redis も任意で利用できます。エラーは保存しません。同じ正規化済み検索への同時要求は統合され、進行中の検索への参加は cached: false になります。"
   },
   "toast": {
     "copied": "コピーしました！",

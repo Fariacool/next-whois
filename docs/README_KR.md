@@ -69,7 +69,7 @@ pnpm dev
 | `NEXT_PUBLIC_MAX_WHOIS_FOLLOW` | 최대 도메인 WHOIS 추적 깊이 | 0 |
 | `MOZ_ACCESS_ID` | Moz API Access ID | — |
 | `MOZ_SECRET_KEY` | Moz API Secret Key | — |
-| `REDIS_HOST` | Redis 호스트 (비어있으면 캐시 비활성화) | — |
+| `REDIS_HOST` | 선택적 Redis 호스트 (비어 있으면 메모리 캐시만 사용) | — |
 | `REDIS_PORT` | Redis 포트 | 6379 |
 | `REDIS_PASSWORD` | Redis 비밀번호 | — |
 | `REDIS_DB` | Redis 데이터베이스 인덱스 | 0 |

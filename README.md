@@ -64,7 +64,7 @@ Requires Docker Engine and Docker Compose v2. The server runs the published imag
 git clone https://github.com/Fariacool/next-whois.git
 cd next-whois
 ./compose init
-# Review .env; set API_KEY if you want to require a key for both APIs.
+# Review .env; set API_KEY if you want to require a key for all APIs.
 ./compose up
 
 # After a newer image has been published:
@@ -95,10 +95,13 @@ pnpm dev
 | `NEXT_PUBLIC_SITE_KEYWORDS` | Site keywords | — |
 | `NEXT_PUBLIC_HISTORY_LIMIT` | Max history items (-1 = unlimited) | -1 |
 | `NEXT_PUBLIC_MAX_WHOIS_FOLLOW` | Max domain WHOIS follow depth | 0 |
-| `API_KEY` | Optional Bearer key required by both APIs | — |
+| `API_KEY` | Optional Bearer key required by all APIs | — |
+| `WHOIS_BATCH_LIMIT` | Maximum queries per batch (1–100) | 10 |
+| `WHOIS_MAX_CONCURRENT` | Outgoing registration connections per process (1–200) | 20 |
+| `WHOIS_PER_SERVER_CONCURRENT` | Outgoing registration connections per external hostname (1–200) | 5 |
 | `MOZ_ACCESS_ID` | Moz API Access ID | — |
 | `MOZ_SECRET_KEY` | Moz API Secret Key | — |
-| `REDIS_HOST` | Redis host (empty = cache disabled) | — |
+| `REDIS_HOST` | Optional Redis host (empty = in-memory cache only) | — |
 | `REDIS_PORT` | Redis port | 6379 |
 | `REDIS_PASSWORD` | Redis password | — |
 | `REDIS_DB` | Redis database index | 0 |
@@ -108,9 +111,17 @@ pnpm dev
 
 See the built-in [API Documentation](https://who.zmh.me/docs) page, or:
 
-**`GET /api/lookup?query=google.com`** — WHOIS/RDAP lookup (parallel, merged results, includes raw responses)
+**`GET /api/lookup?query=google.com`** — RDAP-first lookup; falls back to WHOIS if RDAP has no usable record, including HTTP 404, or fails. Missing individual fields do not trigger WHOIS. Only the selected source's raw response is included.
+
+**`POST /api/lookup/batch`** — Submit `{ "queries": ["example.com", "8.8.8.8", "AS13335"] }`. Accepted batches return HTTP 200 with ordered per-item results and `summary: { total, succeeded, failed }`. Defaults to at most 10 entries, counting duplicates.
 
 **`GET /api/og?query=google.com`** — Dynamic OG image generation
+
+Single and batch lookups share successful-result caching, in-flight deduplication,
+and an outbound scheduler (20 total connections and 5 per external hostname by
+default, per Node.js process). Discovery, redirects and WHOIS referrals use the
+same limits. See [batch API and scheduling](docs/batch-lookup.md) for examples,
+timeouts, error codes and configuration.
 
 Lifecycle dates are normalized to UTC ISO timestamps; unavailable or invalid
 dates remain `Unknown`. A successful lookup can contain registrar/status data
@@ -133,7 +144,9 @@ curl 'https://your-domain.com/api/og?query=example.com' \
   -H "Authorization: Bearer $API_KEY" -o whois.png
 ```
 
-Protected API responses disable browser and CDN caching. Server-side Redis caching remains available after authentication.
+Protected API responses and all batch responses disable browser and CDN caching.
+Successful lookups use a bounded in-memory cache, plus Redis when configured,
+after authentication. Errors are not cached.
 
 ## Tech Stack
 

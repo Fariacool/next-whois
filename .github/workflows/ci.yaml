@@ -39,3 +39,7 @@ jobs:
       - name: Build
         if: ${{ !inputs.skip-build }}
         run: pnpm build
+
+      - name: Production HTTP API regression
+        if: ${{ !inputs.skip-build }}
+        run: pnpm test:http

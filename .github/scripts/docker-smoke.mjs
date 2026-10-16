@@ -40,7 +40,7 @@ for (const path of [script, '/icons/icon-192x192.png']) {
   await response.arrayBuffer();
 }
 
-for (const path of ['/api/lookup', '/api/og']) {
+for (const path of ['/api/lookup', '/api/lookup/batch', '/api/og']) {
   for (const key of [undefined, 'incorrect-smoke-key']) {
     const response = await request(path, key);
     assert.equal(response.status, 401, `Reject unauthorized access: ${path}`);
@@ -52,6 +52,17 @@ for (const path of ['/api/lookup', '/api/og']) {
 const lookup = await request('/api/lookup', process.env.API_KEY);
 assert.equal(lookup.status, 400, 'The runtime key must pass authentication');
 assert.equal((await lookup.json()).error, 'Query is required');
+
+const batchMethod = await request('/api/lookup/batch', process.env.API_KEY);
+assert.equal(batchMethod.status, 405, 'Batch API requires POST after authentication');
+const batchBody = await fetch(`${origin}/api/lookup/batch`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${process.env.API_KEY}`, 'Content-Type': 'application/json' },
+  body: '{invalid',
+  signal: AbortSignal.timeout(10_000),
+});
+assert.equal(batchBody.status, 400, 'Batch API validates authenticated JSON before lookups');
+assert.match(batchBody.headers.get('cache-control') ?? '', /no-store/);
 
 const og = await request('/api/og?w=200&h=200', process.env.API_KEY);
 assert.equal(og.status, 200, 'The Edge OG route must generate an image');

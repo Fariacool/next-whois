@@ -8,7 +8,7 @@
     "storage_error": "Unable to save the API key. Allow local storage in your browser and try again.",
     "loading": "Loading…",
     "query_prompt": "Click Search to start the lookup.",
-    "cache_description": "When API_KEY is set, every API request requires Authorization: Bearer <key>. Missing or invalid keys return HTTP 401 with Error 401. Protected responses use private, no-store; server-side Redis caching can still be used. Without API_KEY, the API remains public and lookup responses allow shared caching."
+    "cache_description": "When API_KEY is set, every API request requires Authorization: Bearer <key>. Missing or invalid keys return HTTP 401 with Error 401. Protected responses use private, no-store; server-side result caching can still be used. Without API_KEY, the API remains public and single-lookup responses allow shared caching."
   },
   "search_history": "Search history...",
   "filter_by_type": "FILTER BY TYPE",
@@ -127,7 +127,7 @@
     "success_response": "Success Response",
     "error_response": "Error Response",
     "preview": "Preview",
-    "lookup_description": "Query WHOIS/RDAP information for a domain, IP address, ASN, or CIDR range. RDAP and WHOIS are queried in parallel; structured fields prefer RDAP data, falling back to WHOIS. Both raw responses are included.",
+    "lookup_description": "Query a domain, IP address, ASN or CIDR using RDAP first. If RDAP has no usable record or fails, fall back to WHOIS. Missing individual fields stay Unknown; the selected source’s raw response is included.",
     "lookup_query_desc": "Domain name, IPv4/IPv6 address, ASN (e.g. AS13335), or CIDR range. Alias: q",
     "og_description": "Generate a dynamic Open Graph image with WHOIS details. Internally queries /api/lookup and renders a card-style summary. Returns a PNG image.",
     "og_query_desc": "Domain name, IP, ASN, or CIDR to look up and display. Alias: q",
@@ -143,7 +143,12 @@
     "required": "Required",
     "optional": "Optional",
     "default": "Default",
-    "description_col": "Description"
+    "description_col": "Description",
+    "batch_description": "Submit a small batch of queries. Results retain input order and duplicates; a failed item does not affect other items. Accepted batches return HTTP 200; inspect each item’s status.",
+    "batch_queries_desc": "Nonempty array of domain, IP, ASN or CIDR strings.",
+    "batch_limits": "Default maximum: 10 entries, counting duplicates. JSON body limit: 64 KiB. Requires Content-Type: application/json. Batch responses always use no-store.",
+    "concurrency_description": "Single and batch lookups share outgoing registration limits: 20 connections per process, 5 per external hostname by default. Discovery, redirects and referrals use the same queue. Each connection has a 5-second deadline; a lookup including queueing has a 30-second deadline.",
+    "cache_description": "Successful results are cached in memory for one hour by default, with optional Redis persistence. Errors are not cached. Concurrent requests for the same normalized query share one lookup; joining an in-flight lookup reports cached: false."
   },
   "toast": {
     "copied": "Copied!",

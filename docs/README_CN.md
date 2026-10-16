@@ -64,7 +64,7 @@ docker run -d --name next-whois --restart unless-stopped \
 git clone https://github.com/Fariacool/next-whois.git
 cd next-whois
 ./compose init
-# 检查 .env；如需对两个 API 启用 key 访问控制，设置 API_KEY。
+# 检查 .env；如需对所有 API 启用 key 访问控制，设置 API_KEY。
 ./compose up
 
 # GitHub 已发布新镜像后更新：
@@ -95,10 +95,13 @@ pnpm dev
 | `NEXT_PUBLIC_SITE_KEYWORDS` | 站点关键词 | — |
 | `NEXT_PUBLIC_HISTORY_LIMIT` | 最大历史记录数（-1 = 无限制） | -1 |
 | `NEXT_PUBLIC_MAX_WHOIS_FOLLOW` | 最大域名 WHOIS 跟随深度 | 0 |
-| `API_KEY` | 可选访问 key，配置后两个 API 均需要 Bearer 认证 | — |
+| `API_KEY` | 所有 API 共用的可选 Bearer 密钥 | — |
+| `WHOIS_BATCH_LIMIT` | 每批最多查询项数（1–100） | 10 |
+| `WHOIS_MAX_CONCURRENT` | 每进程注册信息查询总连接数（1–200） | 20 |
+| `WHOIS_PER_SERVER_CONCURRENT` | 同一上游 hostname 的连接数（1–200） | 5 |
 | `MOZ_ACCESS_ID` | Moz API Access ID | — |
 | `MOZ_SECRET_KEY` | Moz API Secret Key | — |
-| `REDIS_HOST` | Redis 主机（留空则禁用缓存） | — |
+| `REDIS_HOST` | 可选 Redis 主机（留空时仅使用进程内缓存） | — |
 | `REDIS_PORT` | Redis 端口 | 6379 |
 | `REDIS_PASSWORD` | Redis 密码 | — |
 | `REDIS_DB` | Redis 数据库索引 | 0 |
@@ -109,6 +112,10 @@ pnpm dev
 查看内置的 [API 文档](https://who.zmh.me/docs) 页面，或：
 
 **`GET /api/lookup?query=google.com`** — WHOIS/RDAP 查询
+
+**`POST /api/lookup/batch`** — 提交 `{ "queries": ["example.com", "8.8.8.8", "AS13335"] }`，默认每批最多 10 项。按输入顺序返回逐项结果及成功/失败汇总，单项失败不影响其他项。
+
+查询先使用 RDAP，无有效记录（包括 HTTP 404）、请求失败或阶段超时后再回退 WHOIS；RDAP 已有记录但缺少个别字段时直接返回。单查和批量共享缓存、进行中查询与上游连接额度，默认每进程总连接 20、同一上游 hostname 5。配置、超时与错误码见[批量 API 文档](batch-lookup.md)。未配置 Redis 时也有进程内成功结果缓存。
 
 **`GET /api/og?query=google.com`** — 动态 OG 图片生成
 
@@ -128,7 +135,7 @@ curl 'https://your-domain.com/api/og?query=example.com' \
   -H "Authorization: Bearer $API_KEY" -o whois.png
 ```
 
-开启认证后，API 响应禁用浏览器和 CDN 缓存；通过认证的查询仍可使用服务端 Redis 缓存。
+开启认证后，API 响应禁用浏览器和 CDN 缓存；批量响应始终禁用 HTTP 缓存。通过认证的查询仍可使用进程内缓存和可选的 Redis 缓存。
 
 ## 技术栈
 

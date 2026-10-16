@@ -1,17 +1,13 @@
-import { MAX_WHOIS_FOLLOW } from "@/lib/env";
-import { WhoisResult, WhoisAnalyzeResult } from "@/lib/whois/types";
-import { getJsonRedisValue, setJsonRedisValue } from "@/lib/server/redis";
-import { analyzeWhois } from "@/lib/whois/common_parser";
-import { extractDomain } from "@/lib/utils";
-import { lookupRdap, convertRdapToWhoisResult } from "@/lib/whois/rdap_client";
-import { whoisDomain, whoisIp, whoisAsn, whoisQuery } from "whoiser";
-import {
-  isJiscDomain,
-  isNhsSubdomain,
-  knownRegistryHost,
-} from "./domain_routes";
-
-const LOOKUP_TIMEOUT = 15_000;
+import { WhoisResult, WhoisAnalyzeResult } from "./types";
+import { analyzeWhois } from "./common_parser";
+import { lookupRdap, convertRdapToWhoisResult } from "./rdap_client";
+import { isJiscDomain, isNhsSubdomain } from "./domain_routes";
+import { LOOKUP_TIMEOUT_MS } from "./config";
+import { isTerminalError, LookupError, upstreamError } from "./errors";
+import { normalizeQuery } from "./query";
+import { isRdapRecord } from "./rdap_lookup";
+import { lookupRawWhois } from "./whois_client";
+import { WhoisLookupService } from "./service";
 
 const WHOIS_ERROR_PATTERNS = [
   /no match/i,
@@ -96,310 +92,112 @@ function isEmptyResult(result: {
   );
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Timeout")), ms);
-    promise.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(timer);
-        reject(e);
-      },
-    );
-  });
-}
-
-interface WhoisRawResult {
-  raw: string;
-  structured: Record<string, any>;
-  server: string;
-}
-
-function isIPAddress(query: string): boolean {
-  const bare = query.replace(/\/\d{1,3}$/, "");
-  return (
-    /^(\d{1,3}\.){3}\d{1,3}$/.test(bare) ||
-    /^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$/.test(bare)
-  );
-}
-
-function isASNumber(query: string): boolean {
-  return /^AS\d+$/i.test(query);
-}
-
-async function getLookupWhois(domain: string): Promise<WhoisRawResult> {
-  if (isIPAddress(domain)) {
-    const ip = domain.replace(/\/\d{1,3}$/, "");
-    const data = await whoisIp(ip, { timeout: LOOKUP_TIMEOUT });
-    return {
-      raw: (data as any).__raw || "",
-      structured: data as any,
-      server: "ip-whois",
-    };
-  }
-
-  if (isASNumber(domain)) {
-    const asNum = parseInt(domain.replace(/^AS/i, ""));
-    const data = await whoisAsn(asNum, { timeout: LOOKUP_TIMEOUT });
-    return {
-      raw: (data as any).__raw || "",
-      structured: data as any,
-      server: "asn-whois",
-    };
-  }
-
-  const domainToQuery = extractDomain(domain) || domain;
-  if (isJiscDomain(domainToQuery)) {
-    return {
-      raw: await whoisQuery("whois.ja.net", domainToQuery, LOOKUP_TIMEOUT),
-      structured: {},
-      server: "whois.ja.net",
-    };
-  }
-  const follow = Math.min(Math.max(MAX_WHOIS_FOLLOW, 1), 2) as 1 | 2;
-  const data = await whoisDomain(domainToQuery, {
-    host: knownRegistryHost(domainToQuery),
-    raw: true,
-    follow,
-    timeout: LOOKUP_TIMEOUT,
-  });
-
-  const servers = Object.keys(data);
-  if (servers.length === 0) throw new Error("No WHOIS server responded");
-
-  const lastServer = servers[servers.length - 1];
-  const structured = (data as any)[lastServer] || {};
-  const rawParts: string[] = [];
-  for (const s of servers) {
-    const entry = (data as any)[s];
-    if (entry?.__raw) {
-      rawParts.push(entry.__raw);
-    } else if (entry) {
-      const lines: string[] = [];
-      for (const [k, v] of Object.entries(entry)) {
-        if (k === "text" || k === "__raw" || k === "__comments") continue;
-        if (Array.isArray(v)) {
-          for (const item of v) lines.push(`${k}: ${item}`);
-        } else if (v !== undefined && v !== null && v !== "") {
-          lines.push(`${k}: ${v}`);
-        }
-      }
-      if (lines.length > 0) rawParts.push(lines.join("\n"));
+export async function lookupWhois(
+  input: string,
+  signal = AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+): Promise<WhoisResult> {
+  const started = performance.now();
+  const elapsed = () => (performance.now() - started) / 1_000;
+  try {
+    const query = normalizeQuery(input);
+    if (query.kind === "domain" && isNhsSubdomain(query.value)) {
+      return {
+        status: false,
+        time: elapsed(),
+        cached: false,
+        error:
+          "Unsupported WHOIS/RDAP namespace: NHS-managed .nhs.uk subdomains",
+      };
     }
+    signal.throwIfAborted();
+    if (!(query.kind === "domain" && isJiscDomain(query.value))) {
+      try {
+        const data = await lookupRdap(query.value, signal);
+        if (isRdapRecord(data, query)) {
+          const result = await convertRdapToWhoisResult(
+            data,
+            query.value,
+            signal,
+          );
+          signal.throwIfAborted();
+          return {
+            status: true,
+            time: elapsed(),
+            cached: false,
+            source: "rdap",
+            result,
+          };
+        }
+      } catch (error) {
+        if (isTerminalError(error) || signal.aborted) throw error;
+      }
+    }
+    signal.throwIfAborted();
+    const { raw, server } = await lookupRawWhois(query, signal);
+    if (isIanaFallback(raw))
+      throw new LookupError(
+        "LOOKUP_FAILED",
+        "No WHOIS/RDAP server available for this TLD",
+      );
+    const whoisError = detectWhoisError(raw);
+    if (whoisError) {
+      const message = /^no such domain(?:\s|$)/i.test(whoisError)
+        ? `No match for domain "${query.value}" (Jisc: ${whoisError})`
+        : whoisError;
+      return {
+        status: false,
+        time: elapsed(),
+        cached: false,
+        source: "whois",
+        error: message,
+      };
+    }
+    const result = await analyzeWhois(raw, query.value, signal);
+    signal.throwIfAborted();
+    if (isEmptyResult(result))
+      throw new LookupError("LOOKUP_FAILED", "Empty WHOIS response");
+    if (!result.domain) result.domain = query.value;
+    if (!result.whoisServer || result.whoisServer === "Unknown")
+      result.whoisServer = server;
+    return {
+      status: true,
+      time: elapsed(),
+      cached: false,
+      source: "whois",
+      result,
+    };
+  } catch (error) {
+    const failure = upstreamError(error, signal);
+    return {
+      status: false,
+      time: elapsed(),
+      cached: false,
+      error: failure.message,
+      errorCode: failure.code,
+      ...(failure.retryAfterSeconds !== undefined
+        ? { retryAfterSeconds: failure.retryAfterSeconds }
+        : {}),
+    };
   }
-  const raw = rawParts.join("\n\n") || "";
-
-  return { raw, structured, server: lastServer };
 }
 
-function pickStr(a: string, b: string): string {
-  return a && a !== "Unknown" && a !== "" ? a : b;
-}
+const processState = globalThis as typeof globalThis & {
+  nextWhoisLookupService?: WhoisLookupService;
+};
 
-function mergeResults(
-  rdap: WhoisAnalyzeResult,
-  whoisParsed: WhoisAnalyzeResult,
-): WhoisAnalyzeResult {
-  return {
-    domain: pickStr(rdap.domain, whoisParsed.domain),
-    registrar: pickStr(rdap.registrar, whoisParsed.registrar),
-    registrarURL: pickStr(rdap.registrarURL, whoisParsed.registrarURL),
-    ianaId: pickStr(rdap.ianaId, whoisParsed.ianaId),
-    whoisServer: pickStr(rdap.whoisServer, whoisParsed.whoisServer),
-    updatedDate: pickStr(rdap.updatedDate, whoisParsed.updatedDate),
-    creationDate: pickStr(rdap.creationDate, whoisParsed.creationDate),
-    expirationDate: pickStr(rdap.expirationDate, whoisParsed.expirationDate),
-    status: rdap.status.length > 0 ? rdap.status : whoisParsed.status,
-    nameServers:
-      rdap.nameServers.length > 0 ? rdap.nameServers : whoisParsed.nameServers,
-    registrantOrganization: pickStr(
-      rdap.registrantOrganization,
-      whoisParsed.registrantOrganization,
-    ),
-    registrantProvince: pickStr(
-      rdap.registrantProvince,
-      whoisParsed.registrantProvince,
-    ),
-    registrantCountry: pickStr(
-      rdap.registrantCountry,
-      whoisParsed.registrantCountry,
-    ),
-    registrantPhone: pickStr(rdap.registrantPhone, whoisParsed.registrantPhone),
-    registrantEmail: pickStr(rdap.registrantEmail, whoisParsed.registrantEmail),
-    dnssec: pickStr(rdap.dnssec, whoisParsed.dnssec),
-    rawWhoisContent: rdap.rawWhoisContent || whoisParsed.rawWhoisContent,
-    rawRdapContent: rdap.rawRdapContent || whoisParsed.rawRdapContent,
-    domainAge: rdap.domainAge ?? whoisParsed.domainAge,
-    remainingDays: rdap.remainingDays ?? whoisParsed.remainingDays,
-    registerPrice: rdap.registerPrice ?? whoisParsed.registerPrice,
-    renewPrice: rdap.renewPrice ?? whoisParsed.renewPrice,
-    transferPrice: rdap.transferPrice ?? whoisParsed.transferPrice,
-    mozDomainAuthority:
-      rdap.mozDomainAuthority || whoisParsed.mozDomainAuthority,
-    mozPageAuthority: rdap.mozPageAuthority || whoisParsed.mozPageAuthority,
-    mozSpamScore: rdap.mozSpamScore || whoisParsed.mozSpamScore,
-    cidr: pickStr(rdap.cidr, whoisParsed.cidr),
-    inetNum: pickStr(rdap.inetNum, whoisParsed.inetNum),
-    inet6Num: pickStr(rdap.inet6Num, whoisParsed.inet6Num),
-    netRange: pickStr(rdap.netRange, whoisParsed.netRange),
-    netName: pickStr(rdap.netName, whoisParsed.netName),
-    netType: pickStr(rdap.netType, whoisParsed.netType),
-    originAS: pickStr(rdap.originAS, whoisParsed.originAS),
-  };
+export function lookupService() {
+  // Next.js can compile the single and batch routes into separate module graphs.
+  return (processState.nextWhoisLookupService ??= new WhoisLookupService(
+    lookupWhois,
+  ));
 }
 
 export async function lookupWhoisWithCache(
-  domain: string,
+  input: string,
 ): Promise<WhoisResult> {
-  // Do not serve lifecycle fields produced by the former permissive parser.
-  const key = `whois:v2:${domain}`;
-  const cached = await getJsonRedisValue<WhoisResult>(key);
-  if (cached) {
-    return { ...cached, time: 0, cached: true };
-  }
-
-  const result = await lookupWhois(domain);
-  if (result.status) {
-    await setJsonRedisValue<WhoisResult>(key, result);
-  }
-
-  return { ...result, cached: false };
+  return lookupService().lookup(input);
 }
 
-export async function lookupWhois(domain: string): Promise<WhoisResult> {
-  const startTime = performance.now();
-  const elapsed = () => (performance.now() - startTime) / 1000;
-
-  const domainToQuery = extractDomain(domain) || domain;
-  if (isNhsSubdomain(domainToQuery)) {
-    return {
-      time: elapsed(),
-      status: false,
-      cached: false,
-      error: "Unsupported WHOIS/RDAP namespace: NHS-managed .nhs.uk subdomains",
-    };
-  }
-
-  const [rdapSettled, whoisSettled] = await Promise.allSettled([
-    isJiscDomain(domainToQuery)
-      ? Promise.resolve(null)
-      : withTimeout(lookupRdap(domain), LOOKUP_TIMEOUT),
-    withTimeout(getLookupWhois(domain), LOOKUP_TIMEOUT),
-  ]);
-
-  const rdapResult =
-    rdapSettled.status === "fulfilled" ? rdapSettled.value : null;
-  const rdapData = rdapResult && !rdapResult.errorCode ? rdapResult : null;
-  const whoisData =
-    whoisSettled.status === "fulfilled" ? whoisSettled.value : null;
-  const rdapRaw = rdapData ? JSON.stringify(rdapData, null, 2) : undefined;
-  const whoisRawData = whoisData?.raw || null;
-
-  if (rdapData) {
-    try {
-      let result = await convertRdapToWhoisResult(rdapData, domain);
-
-      if (whoisRawData) {
-        if (!isIanaFallback(whoisRawData) && !detectWhoisError(whoisRawData)) {
-          try {
-            const whoisParsed = await analyzeWhois(whoisRawData, domainToQuery);
-            result = mergeResults(result, whoisParsed);
-          } catch {}
-        }
-        result.rawWhoisContent = whoisRawData;
-      }
-      if (whoisData?.server) {
-        result.whoisServer = pickStr(result.whoisServer, whoisData.server);
-      }
-      result.rawRdapContent = rdapRaw!;
-
-      return {
-        time: elapsed(),
-        status: true,
-        cached: false,
-        source: "rdap",
-        result,
-      };
-    } catch {}
-  }
-
-  if (whoisRawData) {
-    if (isIanaFallback(whoisRawData)) {
-      return {
-        time: elapsed(),
-        status: false,
-        cached: false,
-        source: "whois",
-        error: "No WHOIS/RDAP server available for this TLD",
-      };
-    }
-
-    try {
-      const result = await analyzeWhois(whoisRawData, domainToQuery);
-
-      const whoisError = detectWhoisError(whoisRawData);
-      if (whoisError || isEmptyResult(result)) {
-        return {
-          time: elapsed(),
-          status: false,
-          cached: false,
-          source: "whois",
-          error:
-            whoisError && /^no such domain(?:\s|$)/i.test(whoisError)
-              ? `No match for domain "${domainToQuery}" (Jisc: ${whoisError})`
-              : whoisError || "Empty WHOIS response",
-        };
-      }
-
-      if (!result.domain) result.domain = domainToQuery;
-
-      if (whoisData?.server) {
-        result.whoisServer = pickStr(result.whoisServer, whoisData.server);
-      }
-      if (rdapRaw) result.rawRdapContent = rdapRaw;
-
-      return {
-        time: elapsed(),
-        status: true,
-        cached: false,
-        source: "whois",
-        result,
-      };
-    } catch (parseError: unknown) {
-      return {
-        time: elapsed(),
-        status: false,
-        cached: false,
-        source: "whois",
-        error:
-          parseError instanceof Error
-            ? parseError.message
-            : "Failed to parse WHOIS response",
-      };
-    }
-  }
-
-  const rdapError =
-    rdapSettled.status === "rejected" ? rdapSettled.reason : null;
-  const whoisError =
-    whoisSettled.status === "rejected" ? whoisSettled.reason : null;
-  const whoisMsg = whoisError?.message || "";
-  const rdapMsg = rdapError?.message || "";
-  const isTldUnsupported = /not supported/i.test(whoisMsg);
-  const isInternalError =
-    /cannot read properties/i.test(whoisMsg) ||
-    /cannot read properties/i.test(rdapMsg);
-  return {
-    time: elapsed(),
-    status: false,
-    cached: false,
-    error: isTldUnsupported
-      ? "WHOIS/RDAP not available for this TLD"
-      : isInternalError
-        ? "No WHOIS/RDAP data found for this query"
-        : whoisMsg || rdapMsg || "Unknown error occurred",
-  };
+export async function lookupWhoisBatch(inputs: string[]) {
+  return lookupService().batch(inputs);
 }
