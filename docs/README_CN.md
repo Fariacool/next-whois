@@ -45,7 +45,9 @@
 
 ### Docker
 
-每次向 `main` 推送提交，都会先运行 CI，通过后自动构建 `linux/amd64` 和 `linux/arm64` 镜像，并使用内置的 `GITHUB_TOKEN` 发布到 GHCR。不需要 `ENABLE_DOCKER_PUBLISH` 变量，也不需要 DockerHub 账号或密钥。也可以在 **Actions → Build and Push Docker Image → Run workflow** 中选择 `main` 手动构建。
+每次向 `main` 推送提交，都会先执行一次类型检查和测试，再分别使用原生 `ubuntu-24.04`、`ubuntu-24.04-arm` runner 并行构建 `linux/amd64` 和 `linux/arm64` 镜像。每个镜像通过容器冒烟测试后，最后一个 job 使用内置的 `GITHUB_TOKEN` 合并并发布 GHCR manifest。不需要 `ENABLE_DOCKER_PUBLISH` 变量，也不需要 DockerHub 账号或密钥。也可以在 **Actions → Build and Push Docker Image → Run workflow** 中选择 `main` 手动构建。
+
+Docker 层缓存和 Next.js 编译缓存按架构隔离。Next.js 缓存挂载会显式恢复、保存到 Actions 缓存，源码变化后可在全新的 runner 上继续复用；pnpm store 放在缓存挂载中，不写入镜像层。PR 仍运行完整生产构建，`main` 则由两个 Docker 构建完成生产编译，避免 CI 重复执行。
 
 镜像地址为 `ghcr.io/fariacool/next-whois`，自动发布 `latest`、`main` 和 `sha-<完整 commit SHA>` 标签。其他 fork 会按自己的仓库所有者/仓库名生成小写镜像地址，服务器上的 `IMAGE_NAME` 需相应修改。
 

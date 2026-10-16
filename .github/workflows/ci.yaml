@@ -1,11 +1,17 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_call:
+    inputs:
+      skip-build:
+        description: Skip the production build when the Docker matrix builds the app
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -25,10 +31,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: pnpm exec tsc --noEmit
 
       - name: Test
         run: pnpm test
 
       - name: Build
+        if: ${{ !inputs.skip-build }}
         run: pnpm build

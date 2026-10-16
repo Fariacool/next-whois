@@ -7,10 +7,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm install --global pnpm@10.34.7
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir=/pnpm/store
 
 COPY . .
-RUN pnpm build
+RUN --mount=type=cache,target=/app/.next/cache pnpm build
 
 FROM node:22-alpine AS runner
 

@@ -45,7 +45,9 @@ See great work from brilliant builders extending this project:
 
 ### Docker
 
-Every push to `main` runs CI, then builds `linux/amd64` and `linux/arm64` images and publishes them to GHCR using the built-in `GITHUB_TOKEN`. No `ENABLE_DOCKER_PUBLISH` variable or DockerHub credentials are needed. The workflow also supports **Actions → Build and Push Docker Image → Run workflow** on `main`.
+Every push to `main` runs type checks and tests once, then builds `linux/amd64` and `linux/arm64` images in parallel on native `ubuntu-24.04` and `ubuntu-24.04-arm` runners. Each image passes container smoke tests before a final job publishes the combined GHCR manifest using the built-in `GITHUB_TOKEN`. No `ENABLE_DOCKER_PUBLISH` variable or DockerHub credentials are needed. The workflow also supports **Actions → Build and Push Docker Image → Run workflow** on `main`.
+
+Docker layers and Next.js build caches are isolated by architecture. The Next.js cache mount is explicitly restored and saved through Actions cache, so source changes can reuse compilation work across fresh runners. The pnpm store stays in a cache mount rather than an image layer. Pull requests still run a full production build; the `main` workflow uses the two Docker builds instead of repeating that build in CI.
 
 The image is `ghcr.io/fariacool/next-whois`, with `latest`, `main`, and `sha-<full commit SHA>` tags. In another fork, the workflow uses that repository's lowercase owner/name; update `IMAGE_NAME` on the server accordingly.
 
