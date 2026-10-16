@@ -2,6 +2,7 @@ import { domain, ip, autnum } from "node-rdap";
 import { WhoisAnalyzeResult, DomainStatusProps } from "./types";
 import { extractDomain } from "@/lib/utils";
 import { applyParams } from "./common_parser";
+import { parseRdapDate } from "./lifecycle_dates";
 
 export interface RdapResponse {
   handle?: string;
@@ -164,17 +165,17 @@ export async function convertRdapToWhoisResult(
   const entityData = parseRdapEntity(entities);
 
   const events = rdapData.events || [];
-  const creationEvent = events.find(
-    (e: any) => e.eventAction === "registration",
-  );
-  const updateEvent = events.find((e: any) => e.eventAction === "last changed");
-  const expirationEvent = events.find(
-    (e: any) => e.eventAction === "expiration",
-  );
-
-  const creationDate = creationEvent?.eventDate || "Unknown";
-  const updatedDate = updateEvent?.eventDate || "Unknown";
-  const expirationDate = expirationEvent?.eventDate || "Unknown";
+  const eventDate = (action: string): string => {
+    for (const event of events) {
+      if (event.eventAction !== action) continue;
+      const date = parseRdapDate(event.eventDate);
+      if (date) return date;
+    }
+    return "Unknown";
+  };
+  const creationDate = eventDate("registration");
+  const updatedDate = eventDate("last changed");
+  const expirationDate = eventDate("expiration");
 
   const domainAge =
     creationDate !== "Unknown"

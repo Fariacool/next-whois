@@ -1,0 +1,24 @@
+query:        019mobile.co.il
+
+reg-name:     019mobile
+domain:       019mobile.co.il
+
+nserver:      austin.ns.cloudflare.com
+nserver:      tricia.ns.cloudflare.com
+assigned:     02-10-2014
+validity:     02-10-2027
+DNSSEC:       unsigned
+status:       Transfer Locked
+changed:      domain-registrar AT isoc.org.il 20141002 (Assigned)
+changed:      domain-registrar AT isoc.org.il 20190828 (Changed)
+
+admin e-mail: redacted AT example.invalid
+changed:      domain-registrar AT isoc.org.il 20120313
+changed:      Managing Registrar 20170406
+
+tech e-mail:  redacted AT example.invalid
+changed:      domain-registrar AT isoc.org.il 20120313
+changed:      Managing Registrar 20170406
+
+registrar name: LiveDNS Ltd
+registrar info: https://domains.livedns.co.il

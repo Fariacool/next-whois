@@ -1,0 +1,13 @@
+Domain Name: 13cabs.com.au
+Registrar WHOIS Server: whois.auda.org.au
+Registrar URL: https://elb.www.netregistry.com.au/contact-us/
+Last Modified: 2026-08-15T20:04:09Z
+Registrar Name: Melbourne IT
+Status: clientDeleteProhibited https://identitydigital.au/whois-status-codes#clientDeleteProhibited
+Status: serverRenewProhibited https://identitydigital.au/whois-status-codes#serverRenewProhibited
+Status Reason: Not Currently Eligible For Renewal
+Status: clientUpdateProhibited https://identitydigital.au/whois-status-codes#clientUpdateProhibited
+Name Server: evangeline.ns.cloudflare.com
+Name Server: michael.ns.cloudflare.com
+DNSSEC: unsigned
+>>> Last update of WHOIS database: 2026-10-16T13:15:10Z <<<

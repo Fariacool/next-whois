@@ -7,6 +7,7 @@ import { includeArgs } from "@/lib/utils";
 import moment from "moment";
 import { getMozMetrics } from "@/lib/moz/client";
 import { getDomainPricing } from "@/lib/pricing/client";
+import { lifecycleField, parseWhoisDate } from "./lifecycle_dates";
 
 function analyzeDomainStatus(status: string): DomainStatusProps {
   const segments = status.split(" ");
@@ -17,17 +18,6 @@ function analyzeDomainStatus(status: string): DomainStatusProps {
     status: segments[0],
     url,
   };
-}
-
-function analyzeTime(time: string): string {
-  if (!time || time.length === 0) return time;
-
-  try {
-    const date = new Date(time.replace("<", "").replace(">", "").trim());
-    return date.toISOString();
-  } catch (e) {
-    return time;
-  }
 }
 
 function calculateDomainAge(creationDate: string): number {
@@ -73,11 +63,8 @@ export async function applyParams(result: WhoisAnalyzeResult) {
   return result;
 }
 
-export async function analyzeWhois(data: string): Promise<WhoisAnalyzeResult> {
-  const lines = data
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+export function parseWhois(data: string, query = ""): WhoisAnalyzeResult {
+  const lines = data.split(/\r?\n/);
 
   const result: WhoisAnalyzeResult = {
     ...initialWhoisAnalyzeResult,
@@ -86,8 +73,28 @@ export async function analyzeWhois(data: string): Promise<WhoisAnalyzeResult> {
     rawWhoisContent: data,
   };
 
+  let section = "";
+  let contactRecord = false;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i].trim();
+    if (!line || /^[%#;*>]/.test(line)) continue;
+
+    if (/^domain information:$/i.test(line)) {
+      section = "";
+      contactRecord = false;
+      continue;
+    }
+    if (/^contact information:$/i.test(line)) {
+      section = "contact";
+      contactRecord = true;
+      continue;
+    }
+
+    const sectionMatch = line.match(/^\[([^\]]+)\]$/);
+    if (sectionMatch) {
+      section = sectionMatch[1].trim().toLowerCase();
+      continue;
+    }
 
     let key: string;
     let value: string;
@@ -106,6 +113,59 @@ export async function analyzeWhois(data: string): Promise<WhoisAnalyzeResult> {
       value = segments.slice(1).join(":").trim();
     }
 
+    // Preserve indentation until multiline registry fields have been read.
+    if (!value) {
+      const values: string[] = [];
+      while (i + 1 < lines.length && /^[ \t]+\S/.test(lines[i + 1])) {
+        // A nested labelled field belongs to the next iteration.
+        if (/^\s*[^:]+:\s/.test(lines[i + 1])) break;
+        values.push(lines[++i].trim());
+      }
+      if (key === "servers" || key === "name servers") {
+        result.nameServers.push(
+          ...values.map((entry) => entry.split(/\s+/)[0]),
+        );
+        continue;
+      }
+      value = values.join(" ");
+    }
+    if (!value) continue;
+    key = key.replace(/\.+$/, "").replace(/\s+/g, " ").trim();
+
+    if (
+      /^(?:nic-hdl(?:-[a-z]+)?|jpnic handle|person|role|contact|admin e-mail|tech e-mail)$/.test(
+        key,
+      )
+    ) {
+      contactRecord = true;
+    } else if (key === "domain" || key === "domain name") {
+      contactRecord = false;
+    }
+
+    const isIl = (query || result.domain).toLowerCase().endsWith(".il");
+    let field = lifecycleField(key);
+    if (isIl && key === "assigned") field = "creationDate";
+    if (isIl && key === "validity") field = "expirationDate";
+    if (field) {
+      // [Whois] Updated is a database timestamp, and contact object dates do
+      // not describe the domain. Leave such metadata in rawWhoisContent.
+      if ((section && section !== "domain") || contactRecord) continue;
+      if (isIl && key === "changed") {
+        // Legacy IL assignment history has a defined marker. Other changed
+        // lines include contact changes and registrar IDs, not domain dates.
+        const assigned = value.match(
+          /^domain-registrar AT isoc\.org\.il (\d{8}) \(Assigned\)$/i,
+        );
+        if (assigned && result.creationDate === "Unknown") {
+          result.creationDate = parseWhoisDate(assigned[1]) || "Unknown";
+        }
+        continue;
+      }
+      const parsed = parseWhoisDate(value);
+      if (parsed) result[field] = parsed;
+      continue;
+    }
+
     switch (key) {
       case "domain name":
       case "domain":
@@ -114,6 +174,8 @@ export async function analyzeWhois(data: string): Promise<WhoisAnalyzeResult> {
       case "registrar":
       case "authorized agency":
       case "sponsoring registrar":
+      case "registrar name":
+      case "registered by":
         result.registrar = value;
         break;
       case "registrar url":
@@ -134,33 +196,21 @@ export async function analyzeWhois(data: string): Promise<WhoisAnalyzeResult> {
       case "registrar whois server":
         result.whoisServer = value;
         break;
-      case "updated date":
-      case "last updated date":
-        result.updatedDate = analyzeTime(value);
-        break;
-      case "changed":
-        result.updatedDate = analyzeTime(value);
-        break;
-      case "creation date":
-      case "registered date":
-        result.creationDate = analyzeTime(value);
-        break;
-      case "domain name commencement date":
-        result.creationDate = analyzeTime(value);
-        break;
-      case "expiration date":
-        result.expirationDate = analyzeTime(value);
-        break;
-      case "registrar registration expiration date":
-        result.expirationDate = analyzeTime(value);
-        break;
-      case "registry expiry date":
-        result.expirationDate = analyzeTime(value);
-        break;
       case "state": {
-        const expiryMatch = value.match(/\((\d{4}\/\d{2}\/\d{2})\)/);
-        if (expiryMatch && result.expirationDate === "Unknown") {
-          result.expirationDate = analyzeTime(expiryMatch[1]);
+        // JPRS explicitly defines this field's parenthesized date as expiry.
+        // Require its complete registered-state grammar and a JP domain.
+        // https://jprs.jp/about/dom-search/jprs-whois/whois-guide-view.html
+        const expiry = value.match(
+          /^(?:Connected|Registered) \((\d{4}\/\d{2}\/\d{2})\)$/,
+        );
+        if (
+          expiry &&
+          /\.jp$/i.test(query || result.domain) &&
+          !contactRecord &&
+          (!section || section === "domain") &&
+          result.expirationDate === "Unknown"
+        ) {
+          result.expirationDate = parseWhoisDate(expiry[1]) || "Unknown";
         }
         result.status.push(analyzeDomainStatus(value));
         break;
@@ -198,7 +248,13 @@ export async function analyzeWhois(data: string): Promise<WhoisAnalyzeResult> {
         result.registrantOrganization = value;
         break;
       case "registrant":
+      case "registered for":
+      case "domain owner":
         result.registrantOrganization = value;
+        break;
+      case "name":
+        if (section === "registrar") result.registrar = value;
+        if (section === "holder") result.registrantOrganization = value;
         break;
       case "descr":
         result.registrantOrganization === "Unknown" &&
@@ -290,36 +346,6 @@ export async function analyzeWhois(data: string): Promise<WhoisAnalyzeResult> {
     ) {
       result.registrantPhone = value;
     } else if (
-      includeArgs(
-        key,
-        "creation",
-        "created",
-        "created date",
-        "registration time",
-        "registered",
-        "commencement",
-      ) &&
-      result.creationDate === "Unknown"
-    ) {
-      result.creationDate = analyzeTime(value);
-    } else if (
-      includeArgs(key, "expiration", "expiry", "expire", "expire date") &&
-      result.expirationDate === "Unknown"
-    ) {
-      result.expirationDate = analyzeTime(value);
-    } else if (
-      includeArgs(
-        key,
-        "updated",
-        "update",
-        "last update",
-        "last updated",
-        "last-modified",
-      ) &&
-      result.updatedDate === "Unknown"
-    ) {
-      result.updatedDate = analyzeTime(value);
-    } else if (
       includeArgs(key, "account name", "registrant org") &&
       result.registrantOrganization === "Unknown"
     ) {
@@ -334,6 +360,14 @@ export async function analyzeWhois(data: string): Promise<WhoisAnalyzeResult> {
     newStatus.push(status);
   }
   result.status = newStatus;
+  result.nameServers = Array.from(new Set(result.nameServers));
 
-  return await applyParams(result);
+  return result;
+}
+
+export async function analyzeWhois(
+  data: string,
+  query = "",
+): Promise<WhoisAnalyzeResult> {
+  return await applyParams(parseWhois(data, query));
 }

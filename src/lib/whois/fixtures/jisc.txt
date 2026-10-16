@@ -1,0 +1,32 @@
+
+Domain:
+	abdn.ac.uk
+
+Registered For:
+	University of Aberdeen
+
+Domain Owner:
+	University of Aberdeen
+
+Registered By:
+	Jisc Services Limited
+
+Servers:
+	ns2.abdn.ac.uk	139.133.129.2
+	ns3.abdn.ac.uk	139.133.129.3
+	ns0.abdn.ac.uk	139.133.8.5
+	ns2.abdn.ac.uk	2001:630:241:ff::10
+	ns3.abdn.ac.uk	2001:630:241:ff::20
+	ns0.abdn.ac.uk	2001:630:241:c00::10
+	ns1.abdn.ac.uk	139.133.18.228
+	ns1.abdn.ac.uk	2001:630:241:e00::2
+	ns1.ja.net
+
+Renewal date:
+	Tuesday 23rd Nov 2027
+
+Entry updated:
+	Saturday 23rd August 2025
+
+Entry created:
+	Thursday 18th September 2003

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import handler from "@/pages/api/lookup";
 import { lookupWhoisWithCache } from "@/lib/whois/lookup";
+import { initialWhoisAnalyzeResult } from "@/lib/whois/types";
 
 vi.mock("@/lib/whois/lookup", () => ({ lookupWhoisWithCache: vi.fn() }));
 
@@ -91,5 +92,31 @@ describe("lookup API authentication", () => {
     const res = await call();
     expect(res.statusCode).toBe(200);
     expect(res.headers["Cache-Control"]).toContain("s-maxage=3600");
+  });
+
+  it("returns date-less partial results with HTTP 200 through the existing Bearer API", async () => {
+    const result = {
+      ...initialWhoisAnalyzeResult,
+      domain: "example.lv",
+      registrar: "Example Registrar",
+      status: [{ status: "active", url: "" }],
+    };
+    vi.mocked(lookupWhoisWithCache).mockResolvedValue({
+      status: true,
+      time: 0,
+      source: "whois",
+      result,
+    });
+    const res = await call("Bearer test-key", { query: "example.lv" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      status: true,
+      result: {
+        domain: "example.lv",
+        creationDate: "Unknown",
+        updatedDate: "Unknown",
+        expirationDate: "Unknown",
+      },
+    });
   });
 });

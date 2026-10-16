@@ -1,0 +1,26 @@
+[Domain]
+Domain: 1a.lv
+Status: active
+
+[Holder]
+Type: Legal person
+Name: Redacted holder
+RegNr: 20201224
+
+[Tech]
+Type: Natural person
+
+[Registrar]
+Type: Legal person
+Name: Interneto vizija UAB
+RegNr: 126350731
+
+[Nservers]
+Nserver: dan.ns.cloudflare.com
+Nserver: ines.ns.cloudflare.com
+
+[Whois]
+Updated: 2026-10-16T11:12:38.391868+00:00
+
+[Disclaimer]
+% Omitted; see NIC.LV policy linked in README.md.

@@ -4,7 +4,12 @@ import { getJsonRedisValue, setJsonRedisValue } from "@/lib/server/redis";
 import { analyzeWhois } from "@/lib/whois/common_parser";
 import { extractDomain } from "@/lib/utils";
 import { lookupRdap, convertRdapToWhoisResult } from "@/lib/whois/rdap_client";
-import { whoisDomain, whoisIp, whoisAsn } from "whoiser";
+import { whoisDomain, whoisIp, whoisAsn, whoisQuery } from "whoiser";
+import {
+  isJiscDomain,
+  isNhsSubdomain,
+  knownRegistryHost,
+} from "./domain_routes";
 
 const LOOKUP_TIMEOUT = 15_000;
 
@@ -25,6 +30,9 @@ const WHOIS_ERROR_PATTERNS = [
   /is available for/i,
   /no whois information/i,
   /tld is not supported/i,
+  /^no such domain(?:\s|$)/i,
+  /WHOIS LIMIT EXCEEDED/i,
+  /query limit exceeded/i,
 ];
 
 function isIanaFallback(raw: string): boolean {
@@ -47,11 +55,8 @@ function detectWhoisError(raw: string): string | null {
   if (lines.length === 0) return "Empty WHOIS response";
 
   for (const pattern of WHOIS_ERROR_PATTERNS) {
-    const match = raw.match(pattern);
-    if (match) {
-      const matchLine = raw.split("\n").find((l) => pattern.test(l));
-      return matchLine?.trim() || match[0];
-    }
+    const matchLine = lines.find((line) => pattern.test(line));
+    if (matchLine) return matchLine;
   }
   return null;
 }
@@ -61,6 +66,8 @@ function isEmptyResult(result: {
   registrar: string;
   creationDate: string;
   expirationDate: string;
+  updatedDate: string;
+  status: WhoisAnalyzeResult["status"];
   nameServers: string[];
   cidr: string;
   netRange: string;
@@ -83,6 +90,8 @@ function isEmptyResult(result: {
     result.registrar === "Unknown" &&
     result.creationDate === "Unknown" &&
     result.expirationDate === "Unknown" &&
+    result.updatedDate === "Unknown" &&
+    result.status.length === 0 &&
     result.nameServers.length === 0
   );
 }
@@ -143,8 +152,16 @@ async function getLookupWhois(domain: string): Promise<WhoisRawResult> {
   }
 
   const domainToQuery = extractDomain(domain) || domain;
+  if (isJiscDomain(domainToQuery)) {
+    return {
+      raw: await whoisQuery("whois.ja.net", domainToQuery, LOOKUP_TIMEOUT),
+      structured: {},
+      server: "whois.ja.net",
+    };
+  }
   const follow = Math.min(Math.max(MAX_WHOIS_FOLLOW, 1), 2) as 1 | 2;
   const data = await whoisDomain(domainToQuery, {
+    host: knownRegistryHost(domainToQuery),
     raw: true,
     follow,
     timeout: LOOKUP_TIMEOUT,
@@ -237,7 +254,8 @@ function mergeResults(
 export async function lookupWhoisWithCache(
   domain: string,
 ): Promise<WhoisResult> {
-  const key = `whois:${domain}`;
+  // Do not serve lifecycle fields produced by the former permissive parser.
+  const key = `whois:v2:${domain}`;
   const cached = await getJsonRedisValue<WhoisResult>(key);
   if (cached) {
     return { ...cached, time: 0, cached: true };
@@ -255,8 +273,20 @@ export async function lookupWhois(domain: string): Promise<WhoisResult> {
   const startTime = performance.now();
   const elapsed = () => (performance.now() - startTime) / 1000;
 
+  const domainToQuery = extractDomain(domain) || domain;
+  if (isNhsSubdomain(domainToQuery)) {
+    return {
+      time: elapsed(),
+      status: false,
+      cached: false,
+      error: "Unsupported WHOIS/RDAP namespace: NHS-managed .nhs.uk subdomains",
+    };
+  }
+
   const [rdapSettled, whoisSettled] = await Promise.allSettled([
-    withTimeout(lookupRdap(domain), LOOKUP_TIMEOUT),
+    isJiscDomain(domainToQuery)
+      ? Promise.resolve(null)
+      : withTimeout(lookupRdap(domain), LOOKUP_TIMEOUT),
     withTimeout(getLookupWhois(domain), LOOKUP_TIMEOUT),
   ]);
 
@@ -273,9 +303,9 @@ export async function lookupWhois(domain: string): Promise<WhoisResult> {
       let result = await convertRdapToWhoisResult(rdapData, domain);
 
       if (whoisRawData) {
-        if (!isIanaFallback(whoisRawData)) {
+        if (!isIanaFallback(whoisRawData) && !detectWhoisError(whoisRawData)) {
           try {
-            const whoisParsed = await analyzeWhois(whoisRawData);
+            const whoisParsed = await analyzeWhois(whoisRawData, domainToQuery);
             result = mergeResults(result, whoisParsed);
           } catch {}
         }
@@ -308,7 +338,7 @@ export async function lookupWhois(domain: string): Promise<WhoisResult> {
     }
 
     try {
-      const result = await analyzeWhois(whoisRawData);
+      const result = await analyzeWhois(whoisRawData, domainToQuery);
 
       const whoisError = detectWhoisError(whoisRawData);
       if (whoisError || isEmptyResult(result)) {
@@ -317,9 +347,14 @@ export async function lookupWhois(domain: string): Promise<WhoisResult> {
           status: false,
           cached: false,
           source: "whois",
-          error: whoisError || "Empty WHOIS response",
+          error:
+            whoisError && /^no such domain(?:\s|$)/i.test(whoisError)
+              ? `No match for domain "${domainToQuery}" (Jisc: ${whoisError})`
+              : whoisError || "Empty WHOIS response",
         };
       }
+
+      if (!result.domain) result.domain = domainToQuery;
 
       if (whoisData?.server) {
         result.whoisServer = pickStr(result.whoisServer, whoisData.server);

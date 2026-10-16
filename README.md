@@ -110,6 +110,11 @@ See the built-in [API Documentation](https://who.zmh.me/docs) page, or:
 
 **`GET /api/og?query=google.com`** — Dynamic OG image generation
 
+Lifecycle dates are normalized to UTC ISO timestamps; unavailable or invalid
+dates remain `Unknown`. A successful lookup can contain registrar/status data
+without registration dates. See [lifecycle parsing and regression testing](docs/whois-lifecycle.md)
+for namespace-specific behavior, policy sources and optional handoff regression.
+
 ### API key protection
 
 Set `API_KEY` in your hosting provider's server-side environment variables and redeploy. On Netlify, make it available to both Builds and Functions so the Node.js API and Edge OG route use the same value. Do not use a `NEXT_PUBLIC_` prefix. Leaving `API_KEY` unset or empty keeps public access.
