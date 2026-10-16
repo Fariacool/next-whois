@@ -1,5 +1,15 @@
 {
   "title": "Next Whois 查询",
+  "auth": {
+    "clear": "清除 API key",
+    "description": "将 API key 保存在此浏览器中，用于授权查询。",
+    "saved": "API key 已保存",
+    "cleared": "API key 已清除",
+    "storage_error": "无法保存 API key，请允许浏览器使用本地存储后重试。",
+    "loading": "加载中…",
+    "query_prompt": "点击查询后开始检索。",
+    "cache_description": "配置 API_KEY 后，每次 API 请求都需要携带 Authorization: Bearer <key>。缺少或错误的 key 返回 HTTP 401 和 Error 401。受保护的响应使用 private, no-store，服务端仍可使用 Redis 缓存。未配置 API_KEY 时保持公开访问，查询响应允许共享缓存。"
+  },
   "search_history": "搜索历史...",
   "filter_by_type": "按类型筛选",
   "all_types": "所有类型",
@@ -111,7 +121,7 @@
   },
   "docs": {
     "title": "API 文档",
-    "description": "Next Whois 提供简单的 REST API，用于程序化 WHOIS/RDAP 查询和动态 OG 图像生成。所有端点均公开访问，无需认证。",
+    "description": "Next Whois 提供 WHOIS/RDAP 查询与 OG 图像 API。设置服务端环境变量 API_KEY 后需要 Bearer 认证。网页用户可通过顶部导航栏的 API key 入口填写，key 保存在当前浏览器本地。",
     "parameters": "参数",
     "example_request": "请求示例",
     "success_response": "成功响应",

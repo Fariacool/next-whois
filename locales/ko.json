@@ -111,7 +111,7 @@
   },
   "docs": {
     "title": "API 문서",
-    "description": "Next Whois는 프로그래밍 방식의 WHOIS/RDAP 조회 및 동적 OG 이미지 생성을 위한 간단한 REST API를 제공합니다. 모든 엔드포인트는 공개적으로 접근 가능하며 인증이 필요하지 않습니다.",
+    "description": "Next Whois는 WHOIS/RDAP 조회와 OG 이미지 API를 제공합니다. 서버 환경 변수 API_KEY를 설정하면 Bearer 인증이 필요합니다. 상단 탐색 메뉴의 API key 버튼으로 키를 브라우저에 로컬로 저장할 수 있습니다.",
     "parameters": "매개변수",
     "example_request": "요청 예시",
     "success_response": "성공 응답",

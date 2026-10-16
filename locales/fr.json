@@ -111,7 +111,7 @@
   },
   "docs": {
     "title": "Documentation API",
-    "description": "Next Whois fournit une API REST simple pour les requêtes WHOIS/RDAP programmatiques et la génération dynamique d'images OG. Tous les points de terminaison sont publiquement accessibles et ne nécessitent aucune authentification.",
+    "description": "Next Whois fournit des API pour les recherches WHOIS/RDAP et les images OG. La variable serveur API_KEY active l’authentification Bearer. Le bouton API key dans la navigation permet de conserver la clé localement dans le navigateur.",
     "parameters": "Paramètres",
     "example_request": "Exemple de requête",
     "success_response": "Réponse de succès",

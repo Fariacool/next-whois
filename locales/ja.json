@@ -111,7 +111,7 @@
   },
   "docs": {
     "title": "APIドキュメント",
-    "description": "Next Whoisは、プログラマティックなWHOIS/RDAPルックアップと動的OG画像生成のためのシンプルなREST APIを提供します。すべてのエンドポイントは公開されており、認証は不要です。",
+    "description": "Next Whois は WHOIS/RDAP 検索と OG 画像の API を提供します。サーバー環境変数 API_KEY を設定すると Bearer 認証が必要です。ナビゲーションの API key からキーをブラウザーに保存できます。",
     "parameters": "パラメータ",
     "example_request": "リクエスト例",
     "success_response": "成功レスポンス",

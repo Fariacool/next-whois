@@ -1,4 +1,3 @@
-import { lookupWhoisWithCache } from "@/lib/whois/lookup";
 import {
   cleanDomain,
   cn,
@@ -37,7 +36,7 @@ import React, { useEffect, useMemo } from "react";
 import { addHistory, detectQueryType } from "@/lib/history";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { WhoisAnalyzeResult, WhoisResult } from "@/lib/whois/types";
+import { WhoisAnalyzeResult } from "@/lib/whois/types";
 import {
   getEppStatusInfo,
   getEppStatusColor,
@@ -75,6 +74,10 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useSearchHotkeys } from "@/hooks/useSearchHotkeys";
+import { useRouter } from "next/router";
+import { useApiKey } from "@/components/api-key-provider";
+import { useLookup } from "@/components/lookup-provider";
+import { ApiImage } from "@/components/api-image";
 
 const REGISTRAR_ICONS: Record<string, { slug: string | null; color: string }> =
   {
@@ -1156,42 +1159,23 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   const querySegments: string[] = (context.params?.query as string[]) ?? [];
   const origin = getOrigin(context.req);
   const target = cleanDomain(querySegments.join("/"));
-  try {
-    const data = await lookupWhoisWithCache(target);
-    return {
-      props: {
-        data: JSON.parse(JSON.stringify(data)),
-        target,
-        origin,
-      },
-    };
-  } catch (e: any) {
-    return {
-      props: {
-        data: {
-          time: 0,
-          status: false,
-          cached: false,
-          error: e?.message || "Lookup failed",
-        } as WhoisResult,
-        target,
-        origin,
-      },
-    };
-  }
+  return { props: { target, origin } };
 }
 
 export default function LookupPage({
-  data,
   target,
   origin,
 }: {
-  data: WhoisResult;
   target: string;
   origin: string;
 }) {
   const { t } = useTranslation();
-  const [loading, setLoading] = React.useState(false);
+  const router = useRouter();
+  const { ready, request } = useApiKey();
+  const { state, lookup } = useLookup();
+  const currentLookup = state?.target === target ? state : null;
+  const loading = !ready || Boolean(currentLookup?.loading);
+  const data = currentLookup?.data;
   const [expandStatus, setExpandStatus] = React.useState(false);
   const [showImagePreview, setShowImagePreview] = React.useState(false);
   const [imgWidth, setImgWidth] = React.useState(1200);
@@ -1209,16 +1193,22 @@ export default function LookupPage({
 
   const current = getWindowHref();
   const queryType = detectQueryType(target);
-  const { status, result, error, time } = data;
+  const { status, result, error, time = 0, cached, source } = data || {};
 
   const handleSearch = (query: string) => {
-    setLoading(true);
-    window.location.href = toSearchURI(query);
+    void lookup(query);
+    void router.push(toSearchURI(query));
   };
 
   useEffect(() => {
     if (status) addHistory(target);
-  }, []);
+  }, [status, target]);
+
+  async function fetchImage(url: string) {
+    const response = await request(url);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.blob();
+  }
 
   const registrarIcon = result
     ? getRegistrarIcon(result.registrar, result.registrarURL)
@@ -1285,6 +1275,7 @@ export default function LookupPage({
           <div className="mb-6">
             <div className="relative group">
               <SearchBox
+                key={target}
                 initialValue={target}
                 onSearch={handleSearch}
                 loading={loading}
@@ -1439,8 +1430,7 @@ export default function LookupPage({
                     onClick={async () => {
                       const ogUrl = buildOgUrl(target, result);
                       try {
-                        const res = await fetch(ogUrl);
-                        const blob = await res.blob();
+                        const blob = await fetchImage(ogUrl);
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
@@ -1448,8 +1438,13 @@ export default function LookupPage({
                         a.click();
                         URL.revokeObjectURL(url);
                         toast.success(t("toast.downloaded"));
-                      } catch {
-                        toast.error(t("toast.download_failed"));
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error &&
+                            error.message === "Error 401"
+                            ? error.message
+                            : t("toast.download_failed"),
+                        );
                       }
                     }}
                   >
@@ -1460,14 +1455,18 @@ export default function LookupPage({
                     onClick={async () => {
                       const ogUrl = buildOgUrl(target, result);
                       try {
-                        const res = await fetch(ogUrl);
-                        const blob = await res.blob();
+                        const blob = await fetchImage(ogUrl);
                         await navigator.clipboard.write([
                           new ClipboardItem({ "image/png": blob }),
                         ]);
                         toast.success(t("toast.copied_to_clipboard"));
-                      } catch {
-                        toast.error(t("toast.copy_to_clipboard_failed"));
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error &&
+                            error.message === "Error 401"
+                            ? error.message
+                            : t("toast.copy_to_clipboard_failed"),
+                        );
                       }
                     }}
                   >
@@ -1483,7 +1482,28 @@ export default function LookupPage({
             </motion.div>
           )}
 
-          {!status && (
+          {loading && (
+            <p
+              role="status"
+              className="py-8 text-center text-sm text-muted-foreground"
+            >
+              {t("auth.loading")}
+            </p>
+          )}
+          {!loading && !data && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {t("auth.query_prompt")}
+            </p>
+          )}
+          {error === "Error 401" && (
+            <div
+              role="alert"
+              className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-500"
+            >
+              Error 401
+            </div>
+          )}
+          {!loading && error && error !== "Error 401" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1698,8 +1718,8 @@ export default function LookupPage({
                           </Badge>
                         )}
                         <span className="text-[10px] text-muted-foreground font-mono">
-                          {time.toFixed(2)}s{data.cached && ` · ${t("cached")}`}
-                          {data.source && ` · ${data.source}`}
+                          {time.toFixed(2)}s{cached && ` · ${t("cached")}`}
+                          {source && ` · ${source}`}
                         </span>
                       </div>
                     </div>
@@ -2295,7 +2315,7 @@ export default function LookupPage({
               </div>
             </div>
             <div className="rounded-lg border overflow-hidden bg-muted/30">
-              <img
+              <ApiImage
                 src={buildOgUrl(target, result, {
                   w: imgWidth,
                   h: imgHeight,
@@ -2315,8 +2335,7 @@ export default function LookupPage({
                     theme: imgTheme,
                   });
                   try {
-                    const res = await fetch(ogUrl);
-                    const blob = await res.blob();
+                    const blob = await fetchImage(ogUrl);
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.href = url;
@@ -2324,8 +2343,12 @@ export default function LookupPage({
                     a.click();
                     URL.revokeObjectURL(url);
                     toast.success(t("toast.downloaded"));
-                  } catch {
-                    toast.error(t("toast.download_failed"));
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error && error.message === "Error 401"
+                        ? error.message
+                        : t("toast.download_failed"),
+                    );
                   }
                 }}
               >
@@ -2342,14 +2365,17 @@ export default function LookupPage({
                     theme: imgTheme,
                   });
                   try {
-                    const res = await fetch(ogUrl);
-                    const blob = await res.blob();
+                    const blob = await fetchImage(ogUrl);
                     await navigator.clipboard.write([
                       new ClipboardItem({ "image/png": blob }),
                     ]);
                     toast.success(t("toast.copied_to_clipboard"));
-                  } catch {
-                    toast.error(t("toast.copy_to_clipboard_failed"));
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error && error.message === "Error 401"
+                        ? error.message
+                        : t("toast.copy_to_clipboard_failed"),
+                    );
                   }
                 }}
               >

@@ -14,6 +14,9 @@ import { useTranslation, TranslationKey } from "@/lib/i18n";
 import { motion } from "framer-motion";
 import { useSearchHotkeys } from "@/hooks/useSearchHotkeys";
 import { format } from "date-fns";
+import { useRouter } from "next/router";
+import { useApiKey } from "@/components/api-key-provider";
+import { useLookup } from "@/components/lookup-provider";
 
 function QueryTypeIcon({
   type,
@@ -93,7 +96,10 @@ function getDateGroupLabel(
 
 export default function HomePage() {
   const { t } = useTranslation();
-  const [loading, setLoading] = React.useState(false);
+  const router = useRouter();
+  const { ready } = useApiKey();
+  const { lookup, state } = useLookup();
+  const loading = !ready || Boolean(state?.loading);
   const [mounted, setMounted] = React.useState(false);
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
 
@@ -102,10 +108,13 @@ export default function HomePage() {
   }, []);
   useSearchHotkeys({});
 
-  const handleSearch = useCallback((query: string) => {
-    setLoading(true);
-    window.location.href = toSearchURI(query);
-  }, []);
+  const handleSearch = useCallback(
+    (query: string) => {
+      void lookup(query);
+      void router.push(toSearchURI(query));
+    },
+    [lookup, router],
+  );
 
   const allHistory = useMemo(() => {
     if (!mounted) return [];
@@ -175,7 +184,16 @@ export default function HomePage() {
                     <Link
                       key={`${item.query}-${item.timestamp}`}
                       href={toSearchURI(item.query)}
-                      onClick={() => handleSearch(item.query)}
+                      onClick={(event) => {
+                        if (
+                          event.metaKey ||
+                          event.ctrlKey ||
+                          event.shiftKey ||
+                          event.altKey
+                        )
+                          return;
+                        void lookup(item.query);
+                      }}
                       className="group flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors"
                     >
                       <div className="w-7 h-7 rounded-md grid place-items-center border border-border bg-muted/20 group-hover:border-primary/30 shrink-0">

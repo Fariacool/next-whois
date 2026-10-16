@@ -6,6 +6,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { siteTitle, siteDescription, siteKeywords } from "@/lib/seo";
 import PWAInstaller from "@/components/pwa_installer";
 import { Navbar } from "@/components/navbar";
+import { ApiKeyProvider } from "@/components/api-key-provider";
+import { LookupProvider } from "@/components/lookup-provider";
 
 export default function App({ Component, pageProps }: AppProps) {
   const origin: string = pageProps.origin || "";
@@ -64,12 +66,16 @@ export default function App({ Component, pageProps }: AppProps) {
           <div className="absolute inset-0 bg-dot-pattern opacity-10" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/20 to-background" />
         </div>
-        <div className="relative w-full min-h-screen font-sans">
-          <Navbar />
-          <main className="pt-16">
-            <Component {...pageProps} />
-          </main>
-        </div>
+        <ApiKeyProvider>
+          <LookupProvider>
+            <div className="relative w-full min-h-screen font-sans">
+              <Navbar />
+              <main className="pt-16">
+                <Component {...pageProps} />
+              </main>
+            </div>
+          </LookupProvider>
+        </ApiKeyProvider>
       </ThemeProvider>
     </>
   );

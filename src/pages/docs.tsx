@@ -11,6 +11,7 @@ import { RiArrowLeftSLine, RiFileCopyLine } from "@remixicon/react";
 import { VERSION } from "@/lib/env";
 import { useClipboard } from "@/lib/utils";
 import { useTranslation, TranslationKey } from "@/lib/i18n";
+import { ApiImage } from "@/components/api-image";
 
 function JsonHighlight({ content }: { content: string }) {
   const lines = content.split("\n");
@@ -327,7 +328,8 @@ export default function DocsPage({ origin }: { origin: string }) {
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
                     {t("docs.example_request")}
                   </h3>
-                  <CodeBlock>{`curl "https://your-domain.com/api/lookup?query=google.com"`}</CodeBlock>
+                  <CodeBlock>{`curl "https://your-domain.com/api/lookup?query=google.com" \\
+  -H "Authorization: Bearer $API_KEY"`}</CodeBlock>
                 </div>
 
                 <div>
@@ -433,7 +435,8 @@ export default function DocsPage({ origin }: { origin: string }) {
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
                     {t("docs.example_request")}
                   </h3>
-                  <CodeBlock>{`curl "https://your-domain.com/api/og?query=google.com&theme=dark" -o og.png`}</CodeBlock>
+                  <CodeBlock>{`curl "https://your-domain.com/api/og?query=google.com&theme=dark" \\
+  -H "Authorization: Bearer $API_KEY" -o og.png`}</CodeBlock>
                 </div>
 
                 <div>
@@ -441,7 +444,7 @@ export default function DocsPage({ origin }: { origin: string }) {
                     {t("docs.preview")}
                   </h3>
                   <div className="rounded-lg border overflow-hidden bg-muted/30">
-                    <img
+                    <ApiImage
                       src="/api/og?query=google.com"
                       alt="OG Image Preview"
                       className="w-full h-auto"
@@ -461,13 +464,7 @@ export default function DocsPage({ origin }: { origin: string }) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
-                  <span>{t("docs.rate_limiting_desc1")}</span>
-                  <InlineCodeScroll>
-                    Cache-Control: s-maxage=3600, stale-while-revalidate=86400
-                  </InlineCodeScroll>
-                  <span>{t("docs.rate_limiting_desc2")}</span>
-                </div>
+                <p className="leading-relaxed">{t("auth.cache_description")}</p>
                 <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
                   <span>{t("docs.rate_limiting_cached")}</span>
                   <InlineCodeScroll>{`"cached": true`}</InlineCodeScroll>

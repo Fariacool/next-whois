@@ -11,6 +11,7 @@ import { RiGithubFill } from "@remixicon/react";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { usePWAInstaller } from "./pwa_installer";
 import { LanguageSwitcher } from "./language-switcher";
+import { ApiKeyControl } from "./api-key-control";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -72,7 +73,7 @@ export function Navbar() {
         className={cn(
           "mt-4 px-2 h-10 rounded-full",
           "bg-background shadow-sm",
-          "flex items-center gap-6",
+          "flex items-center gap-2 sm:gap-6",
           "transition-all duration-300 ease-in-out",
           "border border-primary/25 border-dashed",
           isVisible ? "translate-y-0 opacity-100" : "-translate-y-4 opacity-0",
@@ -95,6 +96,8 @@ export function Navbar() {
         >
           API
         </Link>
+
+        <ApiKeyControl />
 
         <div className="h-4 w-[1px] bg-primary/10" />
 

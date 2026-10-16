@@ -111,7 +111,7 @@
   },
   "docs": {
     "title": "API 文件",
-    "description": "Next Whois 提供簡單的 REST API，用於程式化 WHOIS/RDAP 查詢和動態 OG 圖片生成。所有端點均公開存取，無需認證。",
+    "description": "Next Whois 提供 WHOIS/RDAP 查詢與 OG 圖片 API。設定伺服器環境變數 API_KEY 後需要 Bearer 認證。網頁使用者可透過頂部導覽列的 API key 入口填寫，key 儲存在目前瀏覽器本機。",
     "parameters": "參數",
     "example_request": "請求範例",
     "success_response": "成功回應",

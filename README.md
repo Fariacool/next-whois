@@ -67,6 +67,7 @@ pnpm dev
 | `NEXT_PUBLIC_SITE_KEYWORDS` | Site keywords | — |
 | `NEXT_PUBLIC_HISTORY_LIMIT` | Max history items (-1 = unlimited) | -1 |
 | `NEXT_PUBLIC_MAX_WHOIS_FOLLOW` | Max domain WHOIS follow depth | 0 |
+| `API_KEY` | Optional Bearer key required by both APIs | — |
 | `MOZ_ACCESS_ID` | Moz API Access ID | — |
 | `MOZ_SECRET_KEY` | Moz API Secret Key | — |
 | `REDIS_HOST` | Redis host (empty = cache disabled) | — |
@@ -82,6 +83,24 @@ See the built-in [API Documentation](https://who.zmh.me/docs) page, or:
 **`GET /api/lookup?query=google.com`** — WHOIS/RDAP lookup (parallel, merged results, includes raw responses)
 
 **`GET /api/og?query=google.com`** — Dynamic OG image generation
+
+### API key protection
+
+Set `API_KEY` in your hosting provider's server-side environment variables and redeploy. On Netlify, make it available to both Builds and Functions so the Node.js API and Edge OG route use the same value. Do not use a `NEXT_PUBLIC_` prefix. Leaving `API_KEY` unset or empty keeps public access.
+
+Use **API key** in the top navigation to save the key in this browser's `localStorage`. The same dialog lets you replace or clear it. Queries and image previews/downloads send `Authorization: Bearer <key>`; missing or incorrect keys return HTTP `401` with `Error 401`. No authentication cookies or login page are used.
+
+Opening a query URL such as `/example.com` only pre-fills the search field. Click Search to execute the lookup on the server. A key must also accompany direct API or OG image requests; it is never added to shared URLs.
+
+```bash
+curl 'https://your-domain.com/api/lookup?query=example.com' \
+  -H "Authorization: Bearer $API_KEY"
+
+curl 'https://your-domain.com/api/og?query=example.com' \
+  -H "Authorization: Bearer $API_KEY" -o whois.png
+```
+
+Protected API responses disable browser and CDN caching. Server-side Redis caching remains available after authentication.
 
 ## Tech Stack
 

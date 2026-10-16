@@ -1,6 +1,11 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
 import { getEppStatusDisplayName } from "@/lib/whois/epp_status";
+import {
+  isApiAuthorized,
+  PRIVATE_API_HEADERS,
+  UNAUTHORIZED_HEADERS,
+} from "@/lib/server/api-auth";
 
 export const config = { runtime: "edge" };
 
@@ -54,6 +59,16 @@ function formatDate(dateStr: string): string {
 }
 
 export default async function handler(req: NextRequest) {
+  if (!(await isApiAuthorized(req.headers.get("authorization")))) {
+    return Response.json(
+      { status: false, time: -1, error: "Error 401" },
+      {
+        status: 401,
+        headers: UNAUTHORIZED_HEADERS,
+      },
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("query") || searchParams.get("q") || "";
   const w = Math.min(
@@ -124,7 +139,22 @@ export default async function handler(req: NextRequest) {
       const origin = new URL(req.url).origin;
       const res = await fetch(
         `${origin}/api/lookup?query=${encodeURIComponent(query)}`,
+        {
+          headers: req.headers.has("authorization")
+            ? { Authorization: req.headers.get("authorization")! }
+            : {},
+          cache: "no-store",
+        },
       );
+      if (res.status === 401) {
+        return Response.json(
+          { status: false, time: -1, error: "Error 401" },
+          {
+            status: 401,
+            headers: UNAUTHORIZED_HEADERS,
+          },
+        );
+      }
       const data = await res.json();
       if (data.status && data.result) {
         const r = data.result;
@@ -859,6 +889,10 @@ export default async function handler(req: NextRequest) {
         )}
       </div>
     ),
-    { width: w, height: h },
+    {
+      width: w,
+      height: h,
+      ...(process.env.API_KEY ? { headers: PRIVATE_API_HEADERS } : {}),
+    },
   );
 }

@@ -1,5 +1,15 @@
 {
   "title": "Next Whois Lookup",
+  "auth": {
+    "clear": "Clear API key",
+    "description": "Save your API key in this browser to authorize queries.",
+    "saved": "API key saved",
+    "cleared": "API key cleared",
+    "storage_error": "Unable to save the API key. Allow local storage in your browser and try again.",
+    "loading": "Loading…",
+    "query_prompt": "Click Search to start the lookup.",
+    "cache_description": "When API_KEY is set, every API request requires Authorization: Bearer <key>. Missing or invalid keys return HTTP 401 with Error 401. Protected responses use private, no-store; server-side Redis caching can still be used. Without API_KEY, the API remains public and lookup responses allow shared caching."
+  },
   "search_history": "Search history...",
   "filter_by_type": "FILTER BY TYPE",
   "all_types": "All Types",
@@ -111,7 +121,7 @@
   },
   "docs": {
     "title": "API Documentation",
-    "description": "Next Whois provides a simple REST API for programmatic WHOIS/RDAP lookups and dynamic OG image generation. All endpoints are publicly accessible and require no authentication.",
+    "description": "Next Whois provides a simple REST API for WHOIS/RDAP lookups and OG images. Set the server environment variable API_KEY to require Bearer authentication. In the UI, use the API key button in the navigation bar; the key is stored locally in your browser.",
     "parameters": "Parameters",
     "example_request": "Example Request",
     "success_response": "Success Response",

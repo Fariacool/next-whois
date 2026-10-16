@@ -474,6 +474,8 @@ export function SearchBox({
         <Button
           size="icon"
           variant="outline"
+          aria-label={t("shortcut_search")}
+          title={t("shortcut_search")}
           className={cn(
             "absolute right-0 rounded-l-none border-l-0 transition-all duration-300",
             (isEnterPressed || loading) && "bg-primary text-primary-foreground",

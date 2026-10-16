@@ -67,6 +67,7 @@ pnpm dev
 | `NEXT_PUBLIC_SITE_KEYWORDS` | 站点关键词 | — |
 | `NEXT_PUBLIC_HISTORY_LIMIT` | 最大历史记录数（-1 = 无限制） | -1 |
 | `NEXT_PUBLIC_MAX_WHOIS_FOLLOW` | 最大域名 WHOIS 跟随深度 | 0 |
+| `API_KEY` | 可选访问 key，配置后两个 API 均需要 Bearer 认证 | — |
 | `MOZ_ACCESS_ID` | Moz API Access ID | — |
 | `MOZ_SECRET_KEY` | Moz API Secret Key | — |
 | `REDIS_HOST` | Redis 主机（留空则禁用缓存） | — |
@@ -82,6 +83,24 @@ pnpm dev
 **`GET /api/lookup?query=google.com`** — WHOIS/RDAP 查询
 
 **`GET /api/og?query=google.com`** — 动态 OG 图片生成
+
+### API key 访问控制
+
+在部署平台设置服务端环境变量 `API_KEY`，然后重新部署。Netlify 中需使其同时适用于 Builds 和 Functions，让 Node.js 查询 API 与 Edge OG 路由使用相同的值。不要使用 `NEXT_PUBLIC_` 前缀。未配置或值为空时保持公开访问。
+
+通过顶部导航栏的 **API key** 入口填写，key 保存在当前浏览器的 `localStorage` 中，同一弹窗可替换或清除。查询、图片预览和下载请求携带 `Authorization: Bearer <key>`；缺少或错误的 key 返回 HTTP `401` 和 `Error 401`。认证不使用 Cookie，不增加登录页。
+
+直接打开 `/example.com` 等链接只预填搜索内容，点击查询后才由服务端执行检索。直接调用 API 或访问 OG 图片同样需要 Bearer 请求头，分享链接不会包含 key。
+
+```bash
+curl 'https://your-domain.com/api/lookup?query=example.com' \
+  -H "Authorization: Bearer $API_KEY"
+
+curl 'https://your-domain.com/api/og?query=example.com' \
+  -H "Authorization: Bearer $API_KEY" -o whois.png
+```
+
+开启认证后，API 响应禁用浏览器和 CDN 缓存；通过认证的查询仍可使用服务端 Redis 缓存。
 
 ## 技术栈
 
