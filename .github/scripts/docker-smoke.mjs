@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { networkInterfaces } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const origin = 'http://127.0.0.1:3000';
@@ -6,6 +7,17 @@ const expectedArch = { amd64: 'x64', arm64: 'arm64' }[process.env.EXPECTED_ARCH]
 assert.ok(expectedArch, 'EXPECTED_ARCH must be amd64 or arm64');
 assert.equal(process.arch, expectedArch, 'The image must match the native runner');
 assert.ok(process.env.API_KEY, 'Set a runtime API_KEY for the smoke test');
+const addresses = Object.values(networkInterfaces())
+  .flat()
+  .filter(address => address && !address.internal);
+assert.ok(
+  addresses.some(address => address.family === 'IPv4'),
+  'The Compose app must have an IPv4 address',
+);
+assert.ok(
+  addresses.some(address => address.family === 'IPv6' && !address.address.startsWith('fe80:')),
+  'The Compose app must have an IPv6 address beyond link-local',
+);
 
 async function request(path, key) {
   return fetch(`${origin}${path}`, {
@@ -73,4 +85,4 @@ assert.equal(
   'The OG response must be a PNG',
 );
 
-console.log(`Container smoke test passed on ${process.arch}: HTML, assets, runtime API key and Edge OG PNG.`);
+console.log(`Container smoke test passed on ${process.arch}: dual-stack Compose network, HTML, assets, runtime API key and Edge OG PNG.`);

@@ -58,7 +58,7 @@ docker run -d --name next-whois --restart unless-stopped \
 
 #### Docker Compose
 
-Requires Docker Engine and Docker Compose v2. The server runs the published image; it does not need Node.js or pnpm.
+Requires Docker Engine 27+ and Docker Compose v2. The server runs the published image; it does not need Node.js or pnpm.
 
 ```bash
 git clone https://github.com/Fariacool/next-whois.git
@@ -74,6 +74,10 @@ cd next-whois
 `./compose init` creates `.env` from `.env.example` when missing. Defaults expose port `3000` with public API access and no Redis dependency. Set `HOST_BIND_ADDRESS=127.0.0.1` when a reverse proxy on the host should be the only entry point, or change `HOST_PORT` to use another port. Optional `REDIS_*` and Moz settings are included in `.env.example`; use `REDIS_HOST=host.docker.internal` for an existing Redis instance listening on a host interface reachable from Docker. The app requires no persistent volume.
 
 Other commands: `./compose logs [service]`, `ps`, `down`, `restart [service]`, `pull`, `redeploy`, `validate`, and `help`. `upgrade` pulls and applies the newest configured image; `redeploy` force-recreates containers using the local image. After editing `.env`, run `./compose up` to recreate containers with the new environment; `restart` alone does not apply configuration changes. To roll back, set `IMAGE_NAME=ghcr.io/fariacool/next-whois:sha-<full commit SHA>` in `.env` and run `./compose upgrade`.
+
+The app uses a dedicated IPv4/IPv6 bridge named `${COMPOSE_NETWORK_NAME:-next-whois}_dualstack`. WHOIS connections automatically try both address families for the same upstream within the existing 5-second deadline. Host IPv6 connectivity, forwarding and Docker firewall/NAT support must also work. The basic `docker run` example above uses Docker's default network; use the Compose setup for dual-stack egress.
+
+When upgrading an older IPv4-only deployment, sync the updated `docker-compose.yml` and `compose` script as well as pulling the new image. Keep your existing `.env`, including `COMPOSE_NETWORK_NAME`. Then run `./compose upgrade` after the new image has been published. It creates the new `<COMPOSE_NETWORK_NAME>_dualstack` network and recreates the app; pulling an image or restarting the old container alone does not update networking. See [IPv6 prerequisites, network migration and verification](./docs/docker-networking.md), including how to update reverse proxies or other containers attached to the old network.
 
 The published image uses the default site/browser settings. Configure `API_KEY`, Redis, and Moz at container runtime; custom `NEXT_PUBLIC_*` site/browser settings require a custom build. Local `.env*` files are excluded from the Docker build context.
 

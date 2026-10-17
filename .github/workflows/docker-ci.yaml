@@ -102,15 +102,22 @@ jobs:
 
       - name: Test the built container
         env:
-          IMAGE_NAME: ${{ steps.image.outputs.name }}
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_NAME: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          API_KEY: ci-smoke-runtime-key
+          COMPOSE_PROJECT_NAME: next-whois-smoke
+          COMPOSE_NETWORK_NAME: next-whois-smoke
+          HOST_BIND_ADDRESS: 127.0.0.1
           TARGET_ARCH: ${{ matrix.arch }}
         run: |
-          trap 'docker rm --force next-whois-smoke >/dev/null 2>&1 || true' EXIT
-          docker run --detach --name next-whois-smoke \
-            --env API_KEY=ci-smoke-runtime-key "${IMAGE_NAME}@${IMAGE_DIGEST}"
+          compose_cmd() {
+            docker compose --env-file .env.example --file docker-compose.yml "$@"
+          }
+          trap 'compose_cmd down >/dev/null 2>&1 || true' EXIT
+          compose_cmd up --detach --pull always
+          container_id="$(compose_cmd ps --quiet app)"
+          test "$(docker network inspect "${COMPOSE_NETWORK_NAME}_dualstack" --format '{{.EnableIPv6}}')" = true
           docker exec --interactive --env "EXPECTED_ARCH=${TARGET_ARCH}" \
-            next-whois-smoke node --input-type=module < .github/scripts/docker-smoke.mjs
+            "${container_id}" node --input-type=module < .github/scripts/docker-smoke.mjs
 
       - name: Export image digest
         env:

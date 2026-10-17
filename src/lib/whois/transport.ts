@@ -154,8 +154,15 @@ export class RegistrationTransport {
           const chunks: Buffer[] = [];
           let size = 0;
           let failure: Error | undefined;
+          // Try both address families for this host within the same deadline.
           const socket = connect(
-            { host, port: 43, family: 4, signal: timeout },
+            {
+              host,
+              port: 43,
+              autoSelectFamily: true,
+              autoSelectFamilyAttemptTimeout: 250,
+              signal: timeout,
+            },
             () => socket.write(`${query}\r\n`),
           );
           socket.on("data", (chunk: Buffer) => {

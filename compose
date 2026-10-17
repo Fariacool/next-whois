@@ -54,7 +54,7 @@ Common overrides (in .env or the shell environment):
   IMAGE_NAME             Published image/tag, default ghcr.io/fariacool/next-whois:latest
   HOST_BIND_ADDRESS      Host interface to bind, default 0.0.0.0
   HOST_PORT              Published HTTP port, default 3000
-  COMPOSE_NETWORK_NAME   Docker network name, default next-whois
+  COMPOSE_NETWORK_NAME   Network base name, default next-whois (app uses <name>_dualstack)
   RESTART_POLICY         Docker restart policy, default unless-stopped
   LOG_MAX_SIZE/FILE      json-file rotation, defaults 10m and 3
 EOF

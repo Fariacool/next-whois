@@ -3,6 +3,8 @@ services:
     image: ${IMAGE_NAME:-ghcr.io/fariacool/next-whois:latest}
     ports:
       - '${HOST_BIND_ADDRESS:-0.0.0.0}:${HOST_PORT:-3000}:3000'
+    networks:
+      - dualstack
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     environment:
@@ -43,5 +45,7 @@ services:
     stop_grace_period: 15s
 
 networks:
-  default:
-    name: ${COMPOSE_NETWORK_NAME:-next-whois}
+  dualstack:
+    name: ${COMPOSE_NETWORK_NAME:-next-whois}_dualstack
+    driver: bridge
+    enable_ipv6: true
